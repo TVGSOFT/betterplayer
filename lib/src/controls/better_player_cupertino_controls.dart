@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:better_player/src/configuration/better_player_controls_configuration.dart';
+import 'package:better_player/src/controls/better_player_cast_button.dart';
 import 'package:better_player/src/controls/better_player_controls_state.dart';
 import 'package:better_player/src/controls/better_player_cupertino_progress_bar.dart';
 import 'package:better_player/src/controls/better_player_multiple_gesture_detector.dart';
@@ -273,6 +275,35 @@ class _BetterPlayerCupertinoControlsState
     );
   }
 
+  Widget _buildCastButton(
+    Color backgroundColor,
+    Color iconColor,
+    double barHeight,
+    double iconSize,
+    double buttonPadding,
+  ) {
+    return AnimatedOpacity(
+      opacity: controlsNotVisible ? 0.0 : 1.0,
+      duration: _controlsConfiguration.controlsHideTime,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          height: barHeight,
+          padding: EdgeInsets.symmetric(
+            horizontal: buttonPadding,
+          ),
+          decoration: BoxDecoration(color: backgroundColor),
+          child: Center(
+            child: BetterPlayerCastButton(
+              iconColor: iconColor,
+              iconSize: iconSize,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Expanded _buildHitArea() {
     return Expanded(
       child: GestureDetector(
@@ -513,6 +544,19 @@ class _BetterPlayerCupertinoControlsState
             )
           else
             const SizedBox(),
+          if (_controlsConfiguration.enableCast)
+            _buildCastButton(
+              backgroundColor,
+              iconColor,
+              barHeight,
+              iconSize,
+              buttonPadding,
+            )
+          else
+            const SizedBox(),
+          const SizedBox(
+            width: 4,
+          ),
           const Spacer(),
           if (_controlsConfiguration.enableMute)
             _buildMuteButton(

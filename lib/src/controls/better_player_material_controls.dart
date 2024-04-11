@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:better_player/src/configuration/better_player_controls_configuration.dart';
+import 'package:better_player/src/controls/better_player_cast_button.dart';
 import 'package:better_player/src/controls/better_player_clickable_widget.dart';
 import 'package:better_player/src/controls/better_player_controls_state.dart';
 import 'package:better_player/src/controls/better_player_material_progress_bar.dart';
@@ -199,6 +200,10 @@ class _BetterPlayerMaterialControlsState
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    if (_controlsConfiguration.enableCast)
+                      _buildCastButton(controlsNotVisible, _onPlayerHide)
+                    else
+                      const SizedBox(),
                     if (_controlsConfiguration.enablePip)
                       _buildPipButtonWrapperWidget(
                           controlsNotVisible, _onPlayerHide)
@@ -255,6 +260,30 @@ class _BetterPlayerMaterialControlsState
           return const SizedBox();
         }
       },
+    );
+  }
+
+  Widget _buildCastButton(bool hideStuff, void Function() onPlayerHide) {
+    return AnimatedOpacity(
+      opacity: controlsNotVisible ? 0.0 : 1.0,
+      duration: _controlsConfiguration.controlsHideTime,
+      onEnd: onPlayerHide,
+      child: Container(
+        height: betterPlayerControlsConfiguration.controlBarHeight,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: BetterPlayerCastButton(
+                iconColor: betterPlayerControlsConfiguration.iconsColor,
+                iconSize:
+                    betterPlayerControlsConfiguration.controlBarHeight * 0.4,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

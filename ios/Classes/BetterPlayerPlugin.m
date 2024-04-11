@@ -29,6 +29,8 @@ bool _remoteCommandsInitialized = false;
     [registrar addMethodCallDelegate:instance channel:channel];
     //[registrar publish:instance];
     [registrar registerViewFactory:instance withId:@"com.jhomlala/better_player"];
+  
+  	[AirPlayPlugin registerWithRegistrar:registrar];
 }
 
 - (instancetype)initWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {

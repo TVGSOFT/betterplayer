@@ -24,6 +24,9 @@ class _NormalPlayerPageState extends State<NormalPlayerPage> {
         DeviceOrientation.portraitDown,
         DeviceOrientation.portraitUp
       ],
+      controlsConfiguration: BetterPlayerControlsConfiguration(
+        playerTheme: BetterPlayerTheme.material,
+      ),
     );
     _betterPlayerDataSource = BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,

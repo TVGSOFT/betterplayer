@@ -42,6 +42,9 @@ class BetterPlayerControlsConfiguration {
   ///Flag used to enable/disable fullscreen
   final bool enableFullscreen;
 
+  ///Flag used to enable/disable cast button
+  final bool enableCast;
+
   ///Flag used to enable/disable mute
   final bool enableMute;
 
@@ -174,6 +177,7 @@ class BetterPlayerControlsConfiguration {
     this.skipBackIcon = Icons.replay_10_outlined,
     this.skipForwardIcon = Icons.forward_10_outlined,
     this.enableFullscreen = true,
+    this.enableCast = true,
     this.enableMute = true,
     this.enableProgressText = true,
     this.enableProgressBar = true,

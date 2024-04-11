@@ -6,26 +6,26 @@ package com.jhomlala.better_player
 import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.util.LongSparseArray
+import com.google.android.gms.cast.framework.CastContext
 import com.jhomlala.better_player.BetterPlayerCache.releaseCache
-import io.flutter.embedding.engine.plugins.FlutterPlugin
-import io.flutter.embedding.engine.plugins.activity.ActivityAware
-import io.flutter.plugin.common.MethodChannel.MethodCallHandler
-import io.flutter.embedding.engine.plugins.FlutterPlugin.FlutterPluginBinding
 import io.flutter.embedding.engine.loader.FlutterLoader
-import io.flutter.plugin.common.MethodCall
-import io.flutter.plugin.common.MethodChannel
-import io.flutter.plugin.common.EventChannel
+import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.embedding.engine.plugins.FlutterPlugin.FlutterPluginBinding
+import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.BinaryMessenger
+import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodCall
+import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.view.TextureRegistry
-import java.lang.Exception
-import java.util.HashMap
 
 /**
  * Android platform implementation of the VideoPlayerPlugin.
@@ -39,6 +39,9 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
     private var activity: Activity? = null
     private var pipHandler: Handler? = null
     private var pipRunnable: Runnable? = null
+
+    private lateinit var chromeCastButtonFactory: ChromeCastButtonFactory
+
     override fun onAttachedToEngine(binding: FlutterPluginBinding) {
         val loader = FlutterLoader()
         flutterState = FlutterState(
@@ -60,8 +63,17 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
             binding.textureRegistry
         )
         flutterState?.startListening(this)
-    }
 
+        CastContext.getSharedInstance(binding.applicationContext)
+
+        chromeCastButtonFactory = ChromeCastButtonFactory()
+        binding
+            .platformViewRegistry
+            .registerViewFactory(
+                "ChromeCastButton",
+                chromeCastButtonFactory
+            )
+    }
 
     override fun onDetachedFromEngine(binding: FlutterPluginBinding) {
         if (flutterState == null) {
@@ -71,10 +83,13 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         releaseCache()
         flutterState?.stopListening()
         flutterState = null
+
+        stopNotificationService()
     }
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activity = binding.activity
+        chromeCastButtonFactory.activity = binding.activity
     }
 
     override fun onDetachedFromActivityForConfigChanges() {}
@@ -354,31 +369,34 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
 
     private fun setupNotification(betterPlayer: BetterPlayer) {
         try {
-            val textureId = getTextureId(betterPlayer)
-            if (textureId != null) {
-                val dataSource = dataSources[textureId]
-                //Don't setup notification for the same source.
-                if (textureId == currentNotificationTextureId && currentNotificationDataSource != null && dataSource != null && currentNotificationDataSource === dataSource) {
-                    return
-                }
-                currentNotificationDataSource = dataSource
-                currentNotificationTextureId = textureId
-                removeOtherNotificationListeners()
-                val showNotification = getParameter(dataSource, SHOW_NOTIFICATION_PARAMETER, false)
-                if (showNotification) {
-                    val title = getParameter(dataSource, TITLE_PARAMETER, "")
-                    val author = getParameter(dataSource, AUTHOR_PARAMETER, "")
-                    val imageUrl = getParameter(dataSource, IMAGE_URL_PARAMETER, "")
-                    val notificationChannelName =
-                        getParameter<String?>(dataSource, NOTIFICATION_CHANNEL_NAME_PARAMETER, null)
-                    val activityName =
-                        getParameter(dataSource, ACTIVITY_NAME_PARAMETER, "MainActivity")
-                    betterPlayer.setupPlayerNotification(
-                        flutterState?.applicationContext!!,
-                        title, author, imageUrl, notificationChannelName, activityName
-                    )
-                }
+            val textureId = getTextureId(betterPlayer) ?: return
+
+            val dataSource = dataSources[textureId]
+            //Don't setup notification for the same source.
+            if (textureId == currentNotificationTextureId && currentNotificationDataSource != null && dataSource != null && currentNotificationDataSource === dataSource) {
+                return
             }
+            currentNotificationDataSource = dataSource
+            currentNotificationTextureId = textureId
+            removeOtherNotificationListeners()
+            val showNotification = getParameter(dataSource, SHOW_NOTIFICATION_PARAMETER, false)
+            if (!showNotification) {
+                return
+            }
+
+            startNotificationService()
+
+            val title = getParameter(dataSource, TITLE_PARAMETER, "")
+            val author = getParameter(dataSource, AUTHOR_PARAMETER, "")
+            val imageUrl = getParameter(dataSource, IMAGE_URL_PARAMETER, "")
+            val notificationChannelName =
+                getParameter<String?>(dataSource, NOTIFICATION_CHANNEL_NAME_PARAMETER, null)
+            val activityName =
+                getParameter(dataSource, ACTIVITY_NAME_PARAMETER, "MainActivity")
+            betterPlayer.setupPlayerNotification(
+                flutterState?.applicationContext!!,
+                title, author, imageUrl, notificationChannelName, activityName
+            )
         } catch (exception: Exception) {
             Log.e(TAG, "SetupNotification failed", exception)
         }
@@ -399,7 +417,6 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         }
         return defaultValue
     }
-
 
     private fun isPictureInPictureSupported(): Boolean {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activity != null && activity!!.packageManager
@@ -459,6 +476,31 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
 
     private interface KeyForAssetAndPackageName {
         operator fun get(asset: String?, packageName: String?): String
+    }
+
+    private fun startNotificationService() {
+        val context = flutterState?.applicationContext ?: return
+
+        try {
+            val intent = Intent(context, BetterPlayerService::class.java)
+            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun stopNotificationService() {
+        val context = flutterState?.applicationContext ?: return
+
+        try {
+            val intent = Intent(context, BetterPlayerService::class.java)
+            context.stopService(intent)
+        } catch (_: Exception) {
+
+        }
     }
 
     private class FlutterState(

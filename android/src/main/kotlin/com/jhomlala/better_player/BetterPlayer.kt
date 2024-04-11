@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -13,59 +12,58 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import com.jhomlala.better_player.DataSourceUtils.getUserAgent
-import com.jhomlala.better_player.DataSourceUtils.isHTTP
-import com.jhomlala.better_player.DataSourceUtils.getDataSourceFactory
-import io.flutter.plugin.common.EventChannel
-import io.flutter.view.TextureRegistry.SurfaceTextureEntry
-import io.flutter.plugin.common.MethodChannel
-import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
-import com.google.android.exoplayer2.ui.PlayerNotificationManager
-import android.support.v4.media.session.MediaSessionCompat
-import com.google.android.exoplayer2.drm.DrmSessionManager
-import androidx.work.WorkManager
-import androidx.work.WorkInfo
-import com.google.android.exoplayer2.drm.HttpMediaDrmCallback
-import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
-import com.google.android.exoplayer2.drm.DefaultDrmSessionManager
-import com.google.android.exoplayer2.drm.FrameworkMediaDrm
-import com.google.android.exoplayer2.drm.UnsupportedDrmException
-import com.google.android.exoplayer2.drm.DummyExoMediaDrm
-import com.google.android.exoplayer2.drm.LocalMediaDrmCallback
-import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory
-import com.google.android.exoplayer2.source.MediaSource
-import com.google.android.exoplayer2.source.ClippingMediaSource
-import com.google.android.exoplayer2.ui.PlayerNotificationManager.MediaDescriptionAdapter
-import com.google.android.exoplayer2.ui.PlayerNotificationManager.BitmapCallback
-import androidx.work.OneTimeWorkRequest
-import android.support.v4.media.session.PlaybackStateCompat
 import android.support.v4.media.MediaMetadataCompat
+import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import android.view.Surface
 import androidx.lifecycle.Observer
-import com.google.android.exoplayer2.source.smoothstreaming.SsMediaSource
-import com.google.android.exoplayer2.source.smoothstreaming.DefaultSsChunkSource
+import androidx.work.Data
+import androidx.work.OneTimeWorkRequest
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import com.google.android.exoplayer2.*
+import com.google.android.exoplayer2.audio.AudioAttributes
+import com.google.android.exoplayer2.drm.DefaultDrmSessionManager
+import com.google.android.exoplayer2.drm.DrmSessionManager
+import com.google.android.exoplayer2.drm.DrmSessionManagerProvider
+import com.google.android.exoplayer2.drm.DummyExoMediaDrm
+import com.google.android.exoplayer2.drm.FrameworkMediaDrm
+import com.google.android.exoplayer2.drm.HttpMediaDrmCallback
+import com.google.android.exoplayer2.drm.LocalMediaDrmCallback
+import com.google.android.exoplayer2.drm.UnsupportedDrmException
+import com.google.android.exoplayer2.ext.cast.CastPlayer
+import com.google.android.exoplayer2.ext.cast.SessionAvailabilityListener
+import com.google.android.exoplayer2.ext.mediasession.MediaSessionConnector
+import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory
+import com.google.android.exoplayer2.source.ClippingMediaSource
+import com.google.android.exoplayer2.source.MediaSource
+import com.google.android.exoplayer2.source.ProgressiveMediaSource
 import com.google.android.exoplayer2.source.dash.DashMediaSource
 import com.google.android.exoplayer2.source.dash.DefaultDashChunkSource
 import com.google.android.exoplayer2.source.hls.HlsMediaSource
-import com.google.android.exoplayer2.source.ProgressiveMediaSource
-import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory
-import io.flutter.plugin.common.EventChannel.EventSink
-import androidx.media.session.MediaButtonReceiver
-import androidx.work.Data
-import com.google.android.exoplayer2.*
-import com.google.android.exoplayer2.audio.AudioAttributes
-import com.google.android.exoplayer2.drm.DrmSessionManagerProvider
-import com.google.android.exoplayer2.ext.mediasession.MediaSessionConnector
-import com.google.android.exoplayer2.trackselection.DefaultTrackSelector.SelectionOverride
+import com.google.android.exoplayer2.source.smoothstreaming.DefaultSsChunkSource
+import com.google.android.exoplayer2.source.smoothstreaming.SsMediaSource
+import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
 import com.google.android.exoplayer2.trackselection.TrackSelectionOverrides
+import com.google.android.exoplayer2.ui.PlayerNotificationManager
+import com.google.android.exoplayer2.ui.PlayerNotificationManager.BitmapCallback
+import com.google.android.exoplayer2.ui.PlayerNotificationManager.MediaDescriptionAdapter
 import com.google.android.exoplayer2.upstream.DataSource
 import com.google.android.exoplayer2.upstream.DefaultDataSource
+import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
 import com.google.android.exoplayer2.util.Util
+import com.google.android.gms.cast.framework.CastContext
+import com.jhomlala.better_player.DataSourceUtils.getDataSourceFactory
+import com.jhomlala.better_player.DataSourceUtils.getUserAgent
+import com.jhomlala.better_player.DataSourceUtils.isHTTP
+import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.EventChannel.EventSink
+import io.flutter.plugin.common.MethodChannel
+import io.flutter.view.TextureRegistry.SurfaceTextureEntry
 import java.io.File
-import java.lang.Exception
-import java.lang.IllegalStateException
 import java.util.*
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 
@@ -75,7 +73,9 @@ internal class BetterPlayer(
     private val textureEntry: SurfaceTextureEntry,
     customDefaultLoadControl: CustomDefaultLoadControl?,
     result: MethodChannel.Result
-) {
+): Player.Listener {
+    private var currentPlayer: Player? = null
+    private val castPlayer: CastPlayer?
     private val exoPlayer: ExoPlayer?
     private val eventSink = QueuingEventSink()
     private val trackSelector: DefaultTrackSelector = DefaultTrackSelector(context)
@@ -96,6 +96,9 @@ internal class BetterPlayer(
         customDefaultLoadControl ?: CustomDefaultLoadControl()
     private var lastSendBufferedPosition = 0L
 
+    private var mediaSource: MediaSource? = null
+    private var playWhenReady = false
+
     init {
         val loadBuilder = DefaultLoadControl.Builder()
         loadBuilder.setBufferDurationsMs(
@@ -105,13 +108,34 @@ internal class BetterPlayer(
             this.customDefaultLoadControl.bufferForPlaybackAfterRebufferMs
         )
         loadControl = loadBuilder.build()
+
+        workManager = WorkManager.getInstance(context)
+        workerObserverMap = HashMap()
         exoPlayer = ExoPlayer.Builder(context)
             .setTrackSelector(trackSelector)
             .setLoadControl(loadControl)
             .build()
-        workManager = WorkManager.getInstance(context)
-        workerObserverMap = HashMap()
+
+        castPlayer = CastPlayer(CastContext.getSharedInstance(context))
+        castPlayer.setSessionAvailabilityListener(object : SessionAvailabilityListener {
+            override fun onCastSessionAvailable() {
+                resetPlayer(exoPlayer)
+                setCurrentPlayer(castPlayer)
+
+                preparePlayer()
+            }
+
+            override fun onCastSessionUnavailable() {
+                resetPlayer(castPlayer)
+                setCurrentPlayer(exoPlayer)
+
+                preparePlayer()
+            }
+        })
+
         setupVideoPlayer(eventChannel, textureEntry, result)
+
+        setCurrentPlayer(if (castPlayer.isCastSessionAvailable) castPlayer else exoPlayer)
     }
 
     fun setDataSource(
@@ -132,10 +156,11 @@ internal class BetterPlayer(
     ) {
         this.key = key
         isInitialized = false
+
         val uri = Uri.parse(dataSource)
         var dataSourceFactory: DataSource.Factory?
         val userAgent = getUserAgent(headers)
-        if (licenseUrl != null && licenseUrl.isNotEmpty()) {
+        if (!licenseUrl.isNullOrEmpty()) {
             val httpMediaDrmCallback =
                 HttpMediaDrmCallback(licenseUrl, DefaultHttpDataSource.Factory())
             if (drmHeaders != null) {
@@ -166,7 +191,7 @@ internal class BetterPlayer(
                         .build(httpMediaDrmCallback)
                 }
             }
-        } else if (clearKey != null && clearKey.isNotEmpty()) {
+        } else if (!clearKey.isNullOrEmpty()) {
             drmSessionManager = if (Util.SDK_INT < 18) {
                 Log.e(TAG, "Protected content not supported on API levels below 18")
                 null
@@ -196,11 +221,13 @@ internal class BetterPlayer(
         val mediaSource = buildMediaSource(uri, dataSourceFactory, formatHint, cacheKey, context)
         if (overriddenDuration != 0L) {
             val clippingMediaSource = ClippingMediaSource(mediaSource, 0, overriddenDuration * 1000)
-            exoPlayer?.setMediaSource(clippingMediaSource)
+            this.mediaSource = clippingMediaSource
         } else {
-            exoPlayer?.setMediaSource(mediaSource)
+            this.mediaSource = mediaSource
         }
-        exoPlayer?.prepare()
+
+        preparePlayer()
+
         result.success(null)
     }
 
@@ -312,9 +339,8 @@ internal class BetterPlayer(
         ).setMediaDescriptionAdapter(mediaDescriptionAdapter).build()
 
         playerNotificationManager?.apply {
-
-            exoPlayer?.let {
-                setPlayer(ForwardingPlayer(exoPlayer))
+            currentPlayer?.let {
+                setPlayer(ForwardingPlayer(it))
                 setUseNextAction(false)
                 setUsePreviousAction(false)
                 setUseStopAction(false)
@@ -328,7 +354,7 @@ internal class BetterPlayer(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             refreshHandler = Handler(Looper.getMainLooper())
             refreshRunnable = Runnable {
-                val playbackState: PlaybackStateCompat = if (exoPlayer?.isPlaying == true) {
+                val playbackState: PlaybackStateCompat = if (currentPlayer?.isPlaying == true) {
                     PlaybackStateCompat.Builder()
                         .setActions(PlaybackStateCompat.ACTION_SEEK_TO)
                         .setState(PlaybackStateCompat.STATE_PLAYING, position, 1.0f)
@@ -354,14 +380,14 @@ internal class BetterPlayer(
             }
         }
         exoPlayerEventListener?.let { exoPlayerEventListener ->
-            exoPlayer?.addListener(exoPlayerEventListener)
+            currentPlayer?.addListener(exoPlayerEventListener)
         }
-        exoPlayer?.seekTo(0)
+        currentPlayer?.seekTo(0)
     }
 
     fun disposeRemoteNotifications() {
         exoPlayerEventListener?.let { exoPlayerEventListener ->
-            exoPlayer?.removeListener(exoPlayerEventListener)
+            currentPlayer?.removeListener(exoPlayerEventListener)
         }
         if (refreshHandler != null) {
             refreshHandler?.removeCallbacksAndMessages(null)
@@ -399,7 +425,7 @@ internal class BetterPlayer(
         }
         val mediaItemBuilder = MediaItem.Builder()
         mediaItemBuilder.setUri(uri)
-        if (cacheKey != null && cacheKey.isNotEmpty()) {
+        if (!cacheKey.isNullOrEmpty()) {
             mediaItemBuilder.setCustomCacheKey(cacheKey)
         }
         val mediaItem = mediaItemBuilder.build()
@@ -449,49 +475,64 @@ internal class BetterPlayer(
                 }
             })
         surface = Surface(textureEntry.surfaceTexture())
-        exoPlayer?.setVideoSurface(surface)
-        setAudioAttributes(exoPlayer, true)
-        exoPlayer?.addListener(object : Player.Listener {
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                when (playbackState) {
-                    Player.STATE_BUFFERING -> {
-                        sendBufferingUpdate(true)
-                        val event: MutableMap<String, Any> = HashMap()
-                        event["event"] = "bufferingStart"
-                        eventSink.success(event)
-                    }
-                    Player.STATE_READY -> {
-                        if (!isInitialized) {
-                            isInitialized = true
-                            sendInitialized()
-                        }
-                        val event: MutableMap<String, Any> = HashMap()
-                        event["event"] = "bufferingEnd"
-                        eventSink.success(event)
-                    }
-                    Player.STATE_ENDED -> {
-                        val event: MutableMap<String, Any?> = HashMap()
-                        event["event"] = "completed"
-                        event["key"] = key
-                        eventSink.success(event)
-                    }
-                    Player.STATE_IDLE -> {
-                        //no-op
-                    }
-                }
-            }
 
-            override fun onPlayerError(error: PlaybackException) {
-                eventSink.error("VideoError", "Video player had error $error", "")
-            }
-        })
+        setAudioAttributes(exoPlayer, true)
+
         val reply: MutableMap<String, Any> = HashMap()
         reply["textureId"] = textureEntry.id()
         result.success(reply)
     }
 
+    private fun setCurrentPlayer(player: Player) {
+        if (currentPlayer === player) {
+            return
+        }
+
+        currentPlayer = player
+
+        player.setVideoSurface(surface)
+
+        player.removeListener(this)
+        player.addListener(this)
+    }
+
+    private fun resetPlayer(player: Player) {
+        player.clearVideoSurface()
+        player.removeListener(this)
+    }
+
+    private fun preparePlayer() {
+        val mediaSource = this.mediaSource ?: return
+
+        if (currentPlayer === exoPlayer) {
+            val playbackPositionMs = castPlayer?.currentPosition ?: C.TIME_UNSET
+
+            exoPlayer?.let {
+                it.setMediaSource(mediaSource)
+                it.prepare()
+                it.playWhenReady = playWhenReady
+                it.seekTo(playbackPositionMs)
+            }
+
+            return
+        }
+
+        if (currentPlayer === castPlayer) {
+            val playbackPositionMs = exoPlayer?.currentPosition ?: C.TIME_UNSET
+
+            castPlayer?.let {
+                it.clearMediaItems()
+                it.setMediaItem(mediaSource.mediaItem, playbackPositionMs)
+                it.prepare()
+                it.playWhenReady = playWhenReady
+            }
+
+            return
+        }
+    }
+
     fun sendBufferingUpdate(isFromBufferingStart: Boolean) {
-        val bufferedPosition = exoPlayer?.bufferedPosition ?: 0L
+        val bufferedPosition = currentPlayer?.bufferedPosition ?: 0L
         if (isFromBufferingStart || bufferedPosition != lastSendBufferedPosition) {
             val event: MutableMap<String, Any> = HashMap()
             event["event"] = "bufferingUpdate"
@@ -520,27 +561,31 @@ internal class BetterPlayer(
     }
 
     fun play() {
-        exoPlayer?.playWhenReady = true
+        playWhenReady = true
+
+        currentPlayer?.playWhenReady = true
     }
 
     fun pause() {
-        exoPlayer?.playWhenReady = false
+        playWhenReady = false
+
+        currentPlayer?.playWhenReady = false
     }
 
     fun setLooping(value: Boolean) {
-        exoPlayer?.repeatMode = if (value) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
+        currentPlayer?.repeatMode = if (value) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
     }
 
     fun setVolume(value: Double) {
         val bracketedValue = max(0.0, min(1.0, value))
             .toFloat()
-        exoPlayer?.volume = bracketedValue
+        currentPlayer?.volume = bracketedValue
     }
 
     fun setSpeed(value: Double) {
         val bracketedValue = value.toFloat()
         val playbackParameters = PlaybackParameters(bracketedValue)
-        exoPlayer?.playbackParameters = playbackParameters
+        currentPlayer?.playbackParameters = playbackParameters
     }
 
     fun setTrackParameters(width: Int, height: Int, bitrate: Int) {
@@ -559,50 +604,54 @@ internal class BetterPlayer(
     }
 
     fun seekTo(location: Int) {
-        exoPlayer?.seekTo(location.toLong())
+        currentPlayer?.seekTo(location.toLong())
     }
 
     val position: Long
-        get() = exoPlayer?.currentPosition ?: 0L
+        get() = currentPlayer?.currentPosition ?: 0L
 
     val absolutePosition: Long
         get() {
-            val timeline = exoPlayer?.currentTimeline
+            val timeline = currentPlayer?.currentTimeline
             timeline?.let {
                 if (!timeline.isEmpty) {
                     val windowStartTimeMs =
                         timeline.getWindow(0, Timeline.Window()).windowStartTimeMs
-                    val pos = exoPlayer?.currentPosition ?: 0L
+                    val pos = currentPlayer?.currentPosition ?: 0L
                     return windowStartTimeMs + pos
                 }
             }
-            return exoPlayer?.currentPosition ?: 0L
+            return currentPlayer?.currentPosition ?: 0L
         }
 
     private fun sendInitialized() {
-        if (isInitialized) {
-            val event: MutableMap<String, Any?> = HashMap()
-            event["event"] = "initialized"
-            event["key"] = key
-            event["duration"] = getDuration()
-            if (exoPlayer?.videoFormat != null) {
-                val videoFormat = exoPlayer.videoFormat
-                var width = videoFormat?.width
-                var height = videoFormat?.height
-                val rotationDegrees = videoFormat?.rotationDegrees
-                // Switch the width/height if video was taken in portrait mode
-                if (rotationDegrees == 90 || rotationDegrees == 270) {
-                    width = exoPlayer.videoFormat?.height
-                    height = exoPlayer.videoFormat?.width
-                }
-                event["width"] = width
-                event["height"] = height
-            }
-            eventSink.success(event)
+        if (!isInitialized || (currentPlayer !is ExoPlayer)) {
+            return
         }
+
+        val player = (currentPlayer as ExoPlayer)
+
+        val event: MutableMap<String, Any?> = HashMap()
+        event["event"] = "initialized"
+        event["key"] = key
+        event["duration"] = getDuration()
+        if (player.videoFormat != null) {
+            val videoFormat = player.videoFormat
+            var width = videoFormat?.width
+            var height = videoFormat?.height
+            val rotationDegrees = videoFormat?.rotationDegrees
+            // Switch the width/height if video was taken in portrait mode
+            if (rotationDegrees == 90 || rotationDegrees == 270) {
+                width = player.videoFormat?.height
+                height = player.videoFormat?.width
+            }
+            event["width"] = width
+            event["height"] = height
+        }
+        eventSink.success(event)
     }
 
-    private fun getDuration(): Long = exoPlayer?.duration ?: 0L
+    private fun getDuration(): Long = currentPlayer?.duration ?: 0L
 
     /**
      * Create media session which will be used in notifications, pip mode.
@@ -630,7 +679,7 @@ internal class BetterPlayer(
             })
             mediaSession.isActive = true
             val mediaSessionConnector = MediaSessionConnector(mediaSession)
-            mediaSessionConnector.setPlayer(exoPlayer)
+            mediaSessionConnector.setPlayer(currentPlayer)
             this.mediaSession = mediaSession
             return mediaSession
         }
@@ -722,7 +771,7 @@ internal class BetterPlayer(
     }
 
     private fun sendSeekToEvent(positionMs: Long) {
-        exoPlayer?.seekTo(positionMs)
+        currentPlayer?.seekTo(positionMs)
         val event: MutableMap<String, Any> = HashMap()
         event["event"] = "seek"
         event["position"] = positionMs
@@ -730,34 +779,72 @@ internal class BetterPlayer(
     }
 
     fun setMixWithOthers(mixWithOthers: Boolean) {
-        setAudioAttributes(exoPlayer, mixWithOthers)
+        (currentPlayer as? ExoPlayer)?.let { setAudioAttributes(it, mixWithOthers) }
     }
 
     fun dispose() {
         disposeMediaSession()
         disposeRemoteNotifications()
         if (isInitialized) {
-            exoPlayer?.stop()
+            currentPlayer?.stop()
         }
         textureEntry.release()
         eventChannel.setStreamHandler(null)
         surface?.release()
-        exoPlayer?.release()
+        currentPlayer?.release()
+        castPlayer?.release()
     }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other == null || javaClass != other.javaClass) return false
         val that = other as BetterPlayer
-        if (if (exoPlayer != null) exoPlayer != that.exoPlayer else that.exoPlayer != null) return false
+        if (if (currentPlayer != null) currentPlayer != that.currentPlayer else that.currentPlayer != null) return false
         return if (surface != null) surface == that.surface else that.surface == null
     }
 
     override fun hashCode(): Int {
-        var result = exoPlayer?.hashCode() ?: 0
+        var result = currentPlayer?.hashCode() ?: 0
         result = 31 * result + if (surface != null) surface.hashCode() else 0
         return result
     }
+
+    //BEGIN: Player.Listener
+
+    override fun onPlaybackStateChanged(playbackState: Int) {
+        when (playbackState) {
+            Player.STATE_BUFFERING -> {
+                sendBufferingUpdate(true)
+                val event: MutableMap<String, Any> = HashMap()
+                event["event"] = "bufferingStart"
+                eventSink.success(event)
+            }
+            Player.STATE_READY -> {
+                if (!isInitialized) {
+                    isInitialized = true
+                    sendInitialized()
+                }
+                val event: MutableMap<String, Any> = HashMap()
+                event["event"] = "bufferingEnd"
+                eventSink.success(event)
+            }
+            Player.STATE_ENDED -> {
+                val event: MutableMap<String, Any?> = HashMap()
+                event["event"] = "completed"
+                event["key"] = key
+                eventSink.success(event)
+            }
+            Player.STATE_IDLE -> {
+                //no-op
+            }
+        }
+    }
+
+    override fun onPlayerError(error: PlaybackException) {
+        eventSink.error("VideoError", "Video player had error $error", "")
+    }
+
+    //END: Player.Listener
 
     companion object {
         private const val TAG = "BetterPlayer"
@@ -771,8 +858,8 @@ internal class BetterPlayer(
         //Clear cache without accessing BetterPlayerCache.
         fun clearCache(context: Context?, result: MethodChannel.Result) {
             try {
-                context?.let { context ->
-                    val file = File(context.cacheDir, "betterPlayerCache")
+                context?.let {
+                    val file = File(it.cacheDir, "betterPlayerCache")
                     deleteDirectory(file)
                 }
                 result.success(null)

@@ -1,13 +1,17 @@
-package com.jhomlala.example
+package com.jhomlala.better_player
 
-import android.app.*
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationCompat.PRIORITY_MIN
+import androidx.core.app.NotificationCompat.PRIORITY_DEFAULT
 
 class BetterPlayerService : Service() {
 
@@ -28,19 +32,21 @@ class BetterPlayerService : Service() {
             } else {
                 ""
             }
-        val notificationIntent = Intent(this, MainActivity::class.java)
+
+        val packageName = applicationContext.packageName
+        val activityName = "MainActivity"
+
+        val notificationIntent = Intent(this, Class.forName("$packageName.$activityName"))
         val pendingIntent =
             PendingIntent.getActivity(
                 this, 0, notificationIntent,
                 PendingIntent.FLAG_IMMUTABLE
             )
 
-
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
-            .setContentTitle("Better Player Notification")
-            .setContentText("Better Player is running")
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setPriority(PRIORITY_MIN)
+            .setContentTitle(getString(R.string.notification_content_title))
+            .setContentText(getString(R.string.notification_content_text))
+            .setPriority(PRIORITY_DEFAULT)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
 
@@ -69,7 +75,7 @@ class BetterPlayerService : Service() {
                     Context.NOTIFICATION_SERVICE
                 ) as NotificationManager
             notificationManager.cancel(notificationId)
-        } catch (exception: Exception) {
+        } catch (_: Exception) {
 
         } finally {
             stopSelf()
