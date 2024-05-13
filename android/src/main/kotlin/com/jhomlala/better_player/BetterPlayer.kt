@@ -17,6 +17,7 @@ import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import android.view.Surface
+import android.webkit.MimeTypeMap
 import androidx.lifecycle.Observer
 import androidx.work.Data
 import androidx.work.OneTimeWorkRequest
@@ -52,6 +53,7 @@ import com.google.android.exoplayer2.ui.PlayerNotificationManager.MediaDescripti
 import com.google.android.exoplayer2.upstream.DataSource
 import com.google.android.exoplayer2.upstream.DefaultDataSource
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
+import com.google.android.exoplayer2.util.MimeTypes
 import com.google.android.exoplayer2.util.Util
 import com.google.android.gms.cast.framework.CastContext
 import com.jhomlala.better_player.DataSourceUtils.getDataSourceFactory
@@ -423,11 +425,22 @@ internal class BetterPlayer(
                 else -> -1
             }
         }
+
         val mediaItemBuilder = MediaItem.Builder()
         mediaItemBuilder.setUri(uri)
         if (!cacheKey.isNullOrEmpty()) {
             mediaItemBuilder.setCustomCacheKey(cacheKey)
         }
+
+        val mimeType: String = when (type) {
+            C.TYPE_SS -> MimeTypes.APPLICATION_SS
+            C.TYPE_DASH -> MimeTypes.APPLICATION_MPD
+            C.TYPE_HLS -> MimeTypes.APPLICATION_M3U8
+            else -> MimeTypeMap.getSingleton().getMimeTypeFromExtension(MimeTypeMap.getFileExtensionFromUrl(uri.toString())) ?: MimeTypes.APPLICATION_MP4
+        }
+
+        mediaItemBuilder.setMimeType(mimeType)
+
         val mediaItem = mediaItemBuilder.build()
         var drmSessionManagerProvider: DrmSessionManagerProvider? = null
         drmSessionManager?.let { drmSessionManager ->
@@ -499,6 +512,10 @@ internal class BetterPlayer(
     private fun resetPlayer(player: Player) {
         player.clearVideoSurface()
         player.removeListener(this)
+        player.clearMediaItems()
+        player.stop()
+
+        isInitialized = false
     }
 
     private fun preparePlayer() {
@@ -521,7 +538,6 @@ internal class BetterPlayer(
             val playbackPositionMs = exoPlayer?.currentPosition ?: C.TIME_UNSET
 
             castPlayer?.let {
-                it.clearMediaItems()
                 it.setMediaItem(mediaSource.mediaItem, playbackPositionMs)
                 it.prepare()
                 it.playWhenReady = playWhenReady
@@ -625,17 +641,18 @@ internal class BetterPlayer(
         }
 
     private fun sendInitialized() {
-        if (!isInitialized || (currentPlayer !is ExoPlayer)) {
+        if (!isInitialized) {
             return
         }
 
-        val player = (currentPlayer as ExoPlayer)
+        val player = currentPlayer
 
         val event: MutableMap<String, Any?> = HashMap()
         event["event"] = "initialized"
         event["key"] = key
         event["duration"] = getDuration()
-        if (player.videoFormat != null) {
+
+        if (player is ExoPlayer && player.videoFormat != null) {
             val videoFormat = player.videoFormat
             var width = videoFormat?.width
             var height = videoFormat?.height
@@ -648,6 +665,7 @@ internal class BetterPlayer(
             event["width"] = width
             event["height"] = height
         }
+
         eventSink.success(event)
     }
 
