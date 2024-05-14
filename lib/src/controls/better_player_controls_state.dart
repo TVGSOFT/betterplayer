@@ -24,7 +24,8 @@ abstract class BetterPlayerControlsState<T extends StatefulWidget>
   void cancelAndRestartTimer();
 
   bool isVideoFinished(VideoPlayerValue? videoPlayerValue) {
-    return videoPlayerValue?.position != null &&
+    return videoPlayerValue?.source != 'chromecast' &&
+        videoPlayerValue?.position != null &&
         videoPlayerValue?.duration != null &&
         videoPlayerValue!.position.inMilliseconds != 0 &&
         videoPlayerValue.duration!.inMilliseconds != 0 &&

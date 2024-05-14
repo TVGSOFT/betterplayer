@@ -328,6 +328,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
       }
       final String? eventType = map["event"] as String?;
       final String? key = map["key"] as String?;
+      final String? source = map["source"] as String?;
       switch (eventType) {
         case 'initialized':
           double width = 0;
@@ -353,11 +354,13 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
             key: key,
             duration: Duration(milliseconds: map['duration'] as int),
             size: size,
+            source: source,
           );
         case 'completed':
           return VideoEvent(
             eventType: VideoEventType.completed,
             key: key,
+            source: source,
           );
         case 'bufferingUpdate':
           final List<dynamic> values = map['values'] as List;
@@ -365,35 +368,41 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
           return VideoEvent(
             eventType: VideoEventType.bufferingUpdate,
             key: key,
+            source: source,
             buffered: values.map<DurationRange>(_toDurationRange).toList(),
           );
         case 'bufferingStart':
           return VideoEvent(
             eventType: VideoEventType.bufferingStart,
             key: key,
+            source: source,
           );
         case 'bufferingEnd':
           return VideoEvent(
             eventType: VideoEventType.bufferingEnd,
             key: key,
+            source: source,
           );
 
         case 'play':
           return VideoEvent(
             eventType: VideoEventType.play,
             key: key,
+            source: source,
           );
 
         case 'pause':
           return VideoEvent(
             eventType: VideoEventType.pause,
             key: key,
+            source: source,
           );
 
         case 'seek':
           return VideoEvent(
             eventType: VideoEventType.seek,
             key: key,
+            source: source,
             position: Duration(milliseconds: map['position'] as int),
           );
 
@@ -401,18 +410,21 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
           return VideoEvent(
             eventType: VideoEventType.pipStart,
             key: key,
+            source: source,
           );
 
         case 'pipStop':
           return VideoEvent(
             eventType: VideoEventType.pipStop,
             key: key,
+            source: source,
           );
 
         default:
           return VideoEvent(
             eventType: VideoEventType.unknown,
             key: key,
+            source: source,
           );
       }
     });

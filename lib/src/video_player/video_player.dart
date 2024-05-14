@@ -33,6 +33,7 @@ class VideoPlayerValue {
     this.speed = 1.0,
     this.errorDescription,
     this.isPip = false,
+    this.source,
   });
 
   /// Returns an instance with a `null` [Duration].
@@ -107,6 +108,9 @@ class VideoPlayerValue {
     return aspectRatio;
   }
 
+  ///Source of Player: expoPlayer, chromecast
+  final String? source;
+
   /// Returns a new instance that has the same values as this current instance,
   /// except for any overrides passed in as arguments to [copyWidth].
   VideoPlayerValue copyWith({
@@ -122,6 +126,7 @@ class VideoPlayerValue {
     String? errorDescription,
     double? speed,
     bool? isPip,
+    String? source,
   }) {
     return VideoPlayerValue(
       duration: duration ?? this.duration,
@@ -136,6 +141,7 @@ class VideoPlayerValue {
       speed: speed ?? this.speed,
       errorDescription: errorDescription ?? this.errorDescription,
       isPip: isPip ?? this.isPip,
+      source: source ?? this.source,
     );
   }
 
@@ -217,6 +223,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
           value = value.copyWith(
             duration: event.duration,
             size: event.size,
+            source: event.source,
           );
           if (!_initializingCompleter.isCompleted) {
             _initializingCompleter.complete(null);

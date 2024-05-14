@@ -651,6 +651,7 @@ internal class BetterPlayer(
         event["event"] = "initialized"
         event["key"] = key
         event["duration"] = getDuration()
+        event["source"] = if (player is ExoPlayer) "exoPlayer" else "chromecast"
 
         if (player is ExoPlayer && player.videoFormat != null) {
             val videoFormat = player.videoFormat

@@ -512,6 +512,60 @@ class _BetterPlayerCupertinoControlsState
     }
     final barHeight = topBarHeight * 0.8;
     final iconSize = topBarHeight * 0.4;
+
+    if (_latestValue?.source == 'chromecast') {
+      return Container(
+        height: barHeight,
+        margin: EdgeInsets.only(
+          top: marginSize,
+          right: marginSize,
+          left: marginSize,
+        ),
+        child: Row(
+          children: <Widget>[
+            if (_controlsConfiguration.enableFullscreen)
+              _buildExpandButton(
+                backgroundColor,
+                iconColor,
+                barHeight,
+                iconSize,
+                buttonPadding,
+              )
+            else
+              const SizedBox(),
+            const SizedBox(
+              width: 4,
+            ),
+            if (_controlsConfiguration.enableCast)
+              _buildCastButton(
+                backgroundColor,
+                iconColor,
+                barHeight,
+                iconSize,
+                buttonPadding,
+              )
+            else
+              const SizedBox(),
+            const SizedBox(
+              width: 4,
+            ),
+            const Spacer(),
+            if (_controlsConfiguration.enableMute)
+              _buildMuteButton(
+                _controller,
+                backgroundColor,
+                iconColor,
+                barHeight,
+                iconSize,
+                buttonPadding,
+              )
+            else
+              const SizedBox(),
+          ],
+        ),
+      );
+    }
+
     return Container(
       height: barHeight,
       margin: EdgeInsets.only(

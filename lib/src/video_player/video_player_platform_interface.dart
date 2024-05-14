@@ -379,6 +379,7 @@ class VideoEvent {
     this.size,
     this.buffered,
     this.position,
+    this.source,
   });
 
   /// The type of the event.
@@ -406,6 +407,9 @@ class VideoEvent {
 
   ///Seek position
   final Duration? position;
+
+  ///Source of Player: expoPlayer, chromecast
+  final String? source;
 
   @override
   bool operator ==(Object other) {
