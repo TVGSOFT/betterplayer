@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.util.LongSparseArray
+import androidx.core.content.ContextCompat
 import com.google.android.gms.cast.framework.CastContext
 import com.jhomlala.better_player.BetterPlayerCache.releaseCache
 import io.flutter.embedding.engine.loader.FlutterLoader
@@ -481,15 +482,8 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
     private fun startNotificationService() {
         val context = flutterState?.applicationContext ?: return
 
-        try {
-            val intent = Intent(context, BetterPlayerService::class.java)
-            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
-        } catch (_: Exception) {
-        }
+        val intent = Intent(context, BetterPlayerService::class.java)
+        ContextCompat.startForegroundService(context, intent);
     }
 
     private fun stopNotificationService() {

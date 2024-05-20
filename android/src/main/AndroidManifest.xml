@@ -3,6 +3,7 @@
     package="com.jhomlala.better_player">
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
@@ -14,6 +15,7 @@
 
         <service
             android:name=".BetterPlayerService"
+            android:foregroundServiceType="mediaPlayback"
             android:stopWithTask="false" />
     </application>
 </manifest>

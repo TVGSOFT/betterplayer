@@ -8,6 +8,7 @@ buildscript {
     ext.workVersion = "2.9.0"
     ext.gradleVersion = "7.0.2"
     ext.kotlinVersion = "1.8.22"
+    ext.coreVersion = "1.13.1"
 
     repositories {
         google()
@@ -63,6 +64,8 @@ android {
         implementation "androidx.lifecycle:lifecycle-common-java8:$lifecycleVersion"
         implementation "androidx.annotation:annotation:$annotationVersion"
         implementation "androidx.work:work-runtime:$workVersion"
+        implementation "androidx.core:core-ktx:$coreVersion"
+
     }
 }
 
