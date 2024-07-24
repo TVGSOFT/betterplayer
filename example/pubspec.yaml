@@ -14,14 +14,16 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   path_provider: ^2.0.10
-  visibility_detector: ^0.3.3
-  collection: ^1.16.0
+  visibility_detector: ^0.4.0+2
+  collection: ^1.18.0
 
 dev_dependencies:
+  flutter_lints: ^4.0.0
   flutter_test:
     sdk: flutter
 
 flutter:
   assets:
     - assets/
+
   uses-material-design: true

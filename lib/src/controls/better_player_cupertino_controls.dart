@@ -1,28 +1,35 @@
 import 'dart:async';
 
 import 'package:better_player/src/configuration/better_player_controls_configuration.dart';
+import 'package:better_player/src/controls/better_player_brightness_control.dart';
 import 'package:better_player/src/controls/better_player_cast_button.dart';
 import 'package:better_player/src/controls/better_player_controls_state.dart';
 import 'package:better_player/src/controls/better_player_cupertino_progress_bar.dart';
 import 'package:better_player/src/controls/better_player_multiple_gesture_detector.dart';
 import 'package:better_player/src/controls/better_player_progress_colors.dart';
+import 'package:better_player/src/controls/better_player_volume_control.dart';
 import 'package:better_player/src/core/better_player_controller.dart';
 import 'package:better_player/src/core/better_player_utils.dart';
 import 'package:better_player/src/video_player/video_player.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-class BetterPlayerCupertinoControls extends StatefulWidget {
+class BetterPlayerCupertinoControls extends BetterPlayerControls {
   ///Callback used to send information if player bar is hidden or not
   final Function(bool visbility) onControlsVisibilityChanged;
 
   ///Controls config
   final BetterPlayerControlsConfiguration controlsConfiguration;
 
-  const BetterPlayerCupertinoControls({
+  @override
+  final GlobalKey playerKey;
+
+  BetterPlayerCupertinoControls({
+    Key? key,
     required this.onControlsVisibilityChanged,
     required this.controlsConfiguration,
-    Key? key,
+    required this.playerKey,
   }) : super(key: key);
 
   @override
@@ -47,6 +54,8 @@ class _BetterPlayerCupertinoControlsState
 
   BetterPlayerControlsConfiguration get _controlsConfiguration =>
       widget.controlsConfiguration;
+
+  bool _isLockedScreen = false;
 
   @override
   VideoPlayerValue? get latestValue => _latestValue;
@@ -96,7 +105,7 @@ class _BetterPlayerCupertinoControlsState
       if (_wasLoading)
         Expanded(child: Center(child: _buildLoadingWidget()))
       else
-        _buildHitArea(),
+        Expanded(child: _buildHitArea()),
       _buildNextVideoWidget(),
       _buildBottomBar(
         backgroundColor,
@@ -126,15 +135,31 @@ class _BetterPlayerCupertinoControlsState
         }
       },
       child: AbsorbPointer(
-          absorbing: controlsNotVisible,
-          child:
-              isFullScreen ? SafeArea(child: controlsColumn) : controlsColumn),
+        absorbing: controlsNotVisible,
+        child: Padding(
+            padding: EdgeInsets.all(8),
+            child: isFullScreen
+                ? SafeArea(child: controlsColumn)
+                : controlsColumn),
+      ),
     );
   }
 
   @override
   void dispose() {
     _dispose();
+
+    if (_isLockedScreen) {
+      SystemChrome.setPreferredOrientations(
+        [
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ],
+      );
+    }
+
     super.dispose();
   }
 
@@ -275,6 +300,47 @@ class _BetterPlayerCupertinoControlsState
     );
   }
 
+  Widget _buildLockButton(
+    Color backgroundColor,
+    Color iconColor,
+    double barHeight,
+    double iconSize,
+    double buttonPadding,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        cancelAndRestartTimer();
+
+        _updateLockScreen();
+      },
+      child: AnimatedOpacity(
+        opacity: controlsNotVisible ? 0.0 : 1.0,
+        duration: _controlsConfiguration.controlsHideTime,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10.0),
+          child: Container(
+            decoration: BoxDecoration(
+              color: backgroundColor,
+            ),
+            child: Container(
+              height: barHeight,
+              padding: EdgeInsets.symmetric(
+                horizontal: buttonPadding,
+              ),
+              child: Icon(
+                Icons.lock_reset,
+                color: _isLockedScreen
+                    ? _controlsConfiguration.activeIconsColor
+                    : _controlsConfiguration.iconsColor,
+                size: iconSize,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildCastButton(
     Color backgroundColor,
     Color iconColor,
@@ -304,24 +370,63 @@ class _BetterPlayerCupertinoControlsState
     );
   }
 
-  Expanded _buildHitArea() {
-    return Expanded(
-      child: GestureDetector(
-        onTap: _latestValue != null && _latestValue!.isPlaying
-            ? () {
-                if (controlsNotVisible == true) {
-                  cancelAndRestartTimer();
-                } else {
-                  _hideTimer?.cancel();
-                  changePlayerControlsNotVisible(true);
-                }
-              }
-            : () {
+  Widget _buildMiddleRow() {
+    return Container(
+      color: _controlsConfiguration.controlBarColor,
+      width: double.infinity,
+      height: double.infinity,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          const SizedBox(
+            width: 16,
+          ),
+          if (betterPlayerControlsConfiguration.enableBrightness)
+            BetterPlayerBrightnessControl(
+              onDragStart: () {
                 _hideTimer?.cancel();
-                changePlayerControlsNotVisible(false);
               },
-        child: Container(
-          color: Colors.transparent,
+              onDragEnd: () {
+                _startHideTimer();
+              },
+            ),
+          const SizedBox(
+            width: 16,
+          ),
+          Expanded(child: SizedBox.expand()),
+          const SizedBox(
+            width: 16,
+          ),
+          if (betterPlayerControlsConfiguration.enableVolume)
+            BetterPlayerVolumeControl(
+              volume: _latestValue?.volume ?? 0,
+              onChanged: _updateVolume,
+              onDragStart: () {
+                _hideTimer?.cancel();
+              },
+              onDragEnd: () {
+                _startHideTimer();
+              },
+            ),
+          const SizedBox(
+            width: 16,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHitArea() {
+    if (!betterPlayerController!.controlsEnabled) {
+      return const SizedBox();
+    }
+    return Container(
+      child: Center(
+        child: AnimatedOpacity(
+          opacity: controlsNotVisible ? 0.0 : 1.0,
+          duration: _controlsConfiguration.controlsHideTime,
+          onEnd: _onPlayerHide,
+          child: _buildMiddleRow(),
         ),
       ),
     );
@@ -513,7 +618,7 @@ class _BetterPlayerCupertinoControlsState
     final barHeight = topBarHeight * 0.8;
     final iconSize = topBarHeight * 0.4;
 
-    if (_latestValue?.source == 'chromecast') {
+    if (_latestValue?.isCasting == true) {
       return Container(
         height: barHeight,
         margin: EdgeInsets.only(
@@ -542,7 +647,7 @@ class _BetterPlayerCupertinoControlsState
                 iconColor,
                 barHeight,
                 iconSize,
-                buttonPadding,
+                8,
               )
             else
               const SizedBox(),
@@ -585,6 +690,16 @@ class _BetterPlayerCupertinoControlsState
             )
           else
             const SizedBox(),
+          const SizedBox(
+            width: 4,
+          ),
+          _buildLockButton(
+            backgroundColor,
+            iconColor,
+            barHeight,
+            iconSize,
+            buttonPadding,
+          ),
           const SizedBox(
             width: 4,
           ),
@@ -904,5 +1019,41 @@ class _BetterPlayerCupertinoControlsState
         }
       },
     );
+  }
+
+  void _updateVolume(double value) {
+    _latestVolume = value;
+    _betterPlayerController?.setVolume(value);
+  }
+
+  void _updateLockScreen() {
+    if (!_isLockedScreen) {
+      final orientation = MediaQuery.of(context).orientation;
+
+      SystemChrome.setPreferredOrientations(
+        orientation == Orientation.portrait
+            ? [
+                DeviceOrientation.portraitUp,
+                DeviceOrientation.portraitDown,
+              ]
+            : [
+                DeviceOrientation.landscapeLeft,
+                DeviceOrientation.landscapeRight,
+              ],
+      );
+    } else {
+      SystemChrome.setPreferredOrientations(
+        [
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ],
+      );
+    }
+
+    setState(() {
+      _isLockedScreen = !_isLockedScreen;
+    });
   }
 }

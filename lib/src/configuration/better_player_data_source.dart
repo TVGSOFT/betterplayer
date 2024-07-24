@@ -6,6 +6,7 @@ import 'package:better_player/src/configuration/better_player_video_format.dart'
 import 'package:better_player/src/subtitles/better_player_subtitles_source.dart';
 import 'package:flutter/widgets.dart';
 
+import '../video_player/video_player_platform_interface.dart';
 import 'better_player_cache_configuration.dart';
 
 ///Representation of data source which will be played in Better Player. Allows
@@ -63,6 +64,9 @@ class BetterPlayerDataSource {
   ///Extension of video without dot.
   final String? videoExtension;
 
+  ///DataSource metadata.
+  final DataSourceMetadata? metadata;
+
   ///Configuration of content protection
   final BetterPlayerDrmConfiguration? drmConfiguration;
 
@@ -96,6 +100,7 @@ class BetterPlayerDataSource {
     this.overriddenDuration,
     this.videoFormat,
     this.videoExtension,
+    this.metadata,
     this.drmConfiguration,
     this.placeholder,
     this.bufferingConfiguration = const BetterPlayerBufferingConfiguration(),
@@ -122,6 +127,7 @@ class BetterPlayerDataSource {
         const BetterPlayerNotificationConfiguration(showNotification: false),
     Duration? overriddenDuration,
     BetterPlayerVideoFormat? videoFormat,
+    DataSourceMetadata? metadata,
     BetterPlayerDrmConfiguration? drmConfiguration,
     Widget? placeholder,
     BetterPlayerBufferingConfiguration bufferingConfiguration =
@@ -141,6 +147,7 @@ class BetterPlayerDataSource {
       notificationConfiguration: notificationConfiguration,
       overriddenDuration: overriddenDuration,
       videoFormat: videoFormat,
+      metadata: metadata,
       drmConfiguration: drmConfiguration,
       placeholder: placeholder,
       bufferingConfiguration: bufferingConfiguration,
@@ -158,6 +165,7 @@ class BetterPlayerDataSource {
     BetterPlayerCacheConfiguration? cacheConfiguration,
     BetterPlayerNotificationConfiguration? notificationConfiguration,
     Duration? overriddenDuration,
+    DataSourceMetadata? metadata,
     Widget? placeholder,
   }) {
     return BetterPlayerDataSource(
@@ -171,6 +179,7 @@ class BetterPlayerDataSource {
       notificationConfiguration: notificationConfiguration =
           const BetterPlayerNotificationConfiguration(showNotification: false),
       overriddenDuration: overriddenDuration,
+      metadata: metadata,
       placeholder: placeholder,
     );
   }
@@ -187,6 +196,7 @@ class BetterPlayerDataSource {
     BetterPlayerCacheConfiguration? cacheConfiguration,
     BetterPlayerNotificationConfiguration? notificationConfiguration,
     Duration? overriddenDuration,
+    DataSourceMetadata? metadata,
     Widget? placeholder,
   }) {
     return BetterPlayerDataSource(
@@ -202,6 +212,7 @@ class BetterPlayerDataSource {
       notificationConfiguration: notificationConfiguration =
           const BetterPlayerNotificationConfiguration(showNotification: false),
       overriddenDuration: overriddenDuration,
+      metadata: metadata,
       placeholder: placeholder,
     );
   }
@@ -223,6 +234,7 @@ class BetterPlayerDataSource {
     Duration? overriddenDuration,
     BetterPlayerVideoFormat? videoFormat,
     String? videoExtension,
+    DataSourceMetadata? metadata,
     BetterPlayerDrmConfiguration? drmConfiguration,
     Widget? placeholder,
     BetterPlayerBufferingConfiguration? bufferingConfiguration =
@@ -245,6 +257,7 @@ class BetterPlayerDataSource {
       overriddenDuration: overriddenDuration ?? this.overriddenDuration,
       videoFormat: videoFormat ?? this.videoFormat,
       videoExtension: videoExtension ?? this.videoExtension,
+      metadata: metadata ?? this.metadata,
       drmConfiguration: drmConfiguration ?? this.drmConfiguration,
       placeholder: placeholder ?? this.placeholder,
       bufferingConfiguration:

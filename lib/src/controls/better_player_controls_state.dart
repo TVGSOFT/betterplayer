@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math';
+
 import 'package:better_player/better_player.dart';
 import 'package:better_player/src/controls/better_player_clickable_widget.dart';
 import 'package:better_player/src/core/better_player_utils.dart';
@@ -7,8 +8,14 @@ import 'package:collection/collection.dart' show IterableExtension;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+abstract class BetterPlayerControls extends StatefulWidget {
+  GlobalKey get playerKey;
+
+  BetterPlayerControls({Key? key}) : super(key: key);
+}
+
 ///Base class for both material and cupertino controls
-abstract class BetterPlayerControlsState<T extends StatefulWidget>
+abstract class BetterPlayerControlsState<T extends BetterPlayerControls>
     extends State<T> {
   ///Min. time of buffered video to hide loading timer (in milliseconds)
   static const int _bufferingInterval = 20000;
@@ -21,42 +28,53 @@ abstract class BetterPlayerControlsState<T extends StatefulWidget>
 
   bool controlsNotVisible = true;
 
+  double aspectRatio = 16 / 9;
+  BoxFit boxFit = BoxFit.contain;
+
   void cancelAndRestartTimer();
 
-  bool isVideoFinished(VideoPlayerValue? videoPlayerValue) {
-    return videoPlayerValue?.source != 'chromecast' &&
-        videoPlayerValue?.position != null &&
-        videoPlayerValue?.duration != null &&
-        videoPlayerValue!.position.inMilliseconds != 0 &&
-        videoPlayerValue.duration!.inMilliseconds != 0 &&
-        videoPlayerValue.position >= videoPlayerValue.duration!;
+  bool isVideoFinished(VideoPlayerValue? latestValue) {
+    final position = latestValue?.position;
+    final duration = latestValue?.duration;
+
+    if (position == null || duration == null) {
+      return false;
+    }
+
+    return position.inMilliseconds != 0 &&
+        duration.inMilliseconds != 0 &&
+        position >= duration;
   }
 
   void skipBack() {
-    if (latestValue != null) {
-      cancelAndRestartTimer();
-      final beginning = const Duration().inMilliseconds;
-      final skip = (latestValue!.position -
-              Duration(
-                  milliseconds: betterPlayerControlsConfiguration
-                      .backwardSkipTimeInMilliseconds))
-          .inMilliseconds;
-      betterPlayerController!
-          .seekTo(Duration(milliseconds: max(skip, beginning)));
+    if (latestValue == null) {
+      return;
     }
+
+    cancelAndRestartTimer();
+    final beginning = const Duration().inMilliseconds;
+    final skip = (latestValue!.position -
+            Duration(
+                milliseconds: betterPlayerControlsConfiguration
+                    .backwardSkipTimeInMilliseconds))
+        .inMilliseconds;
+    betterPlayerController!
+        .seekTo(Duration(milliseconds: max(skip, beginning)));
   }
 
   void skipForward() {
-    if (latestValue != null) {
-      cancelAndRestartTimer();
-      final end = latestValue!.duration!.inMilliseconds;
-      final skip = (latestValue!.position +
-              Duration(
-                  milliseconds: betterPlayerControlsConfiguration
-                      .forwardSkipTimeInMilliseconds))
-          .inMilliseconds;
-      betterPlayerController!.seekTo(Duration(milliseconds: min(skip, end)));
+    if (latestValue == null) {
+      return;
     }
+
+    cancelAndRestartTimer();
+    final end = latestValue!.duration!.inMilliseconds;
+    final skip = (latestValue!.position +
+            Duration(
+                milliseconds: betterPlayerControlsConfiguration
+                    .forwardSkipTimeInMilliseconds))
+        .inMilliseconds;
+    betterPlayerController!.seekTo(Duration(milliseconds: min(skip, end)));
   }
 
   void onShowMoreClicked() {
@@ -98,6 +116,13 @@ abstract class BetterPlayerControlsState<T extends StatefulWidget>
                 Navigator.of(context).pop();
                 _showAudioTracksSelectionWidget();
               }),
+            if (betterPlayerControlsConfiguration.enableAspectRatio)
+              _buildMoreOptionsListRow(
+                  betterPlayerControlsConfiguration.aspectRatioIcon,
+                  translations.overflowMenuAspectRatio, () {
+                Navigator.of(context).pop();
+                _showAspectRatioSelectionWidget();
+              }),
             if (betterPlayerControlsConfiguration
                 .overflowMenuCustomItems.isNotEmpty)
               ...betterPlayerControlsConfiguration.overflowMenuCustomItems.map(
@@ -109,7 +134,7 @@ abstract class BetterPlayerControlsState<T extends StatefulWidget>
                     customItem.onClicked.call();
                   },
                 ),
-              )
+              ),
           ],
         ),
       ),
@@ -435,6 +460,62 @@ abstract class BetterPlayerControlsState<T extends StatefulWidget>
     );
   }
 
+  Widget _buildAspectRatioRow(
+      double ratio, String displayValue, BoxFit boxFit) {
+    final isSelected = aspectRatio == ratio && this.boxFit == boxFit;
+
+    return BetterPlayerMaterialClickableWidget(
+      onTap: () {
+        Navigator.of(context).pop();
+
+        _changeAspectRatio(ratio, boxFit);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        child: Row(
+          children: [
+            SizedBox(width: isSelected ? 8 : 16),
+            Visibility(
+                visible: isSelected,
+                child: Icon(
+                  Icons.check_outlined,
+                  color:
+                      betterPlayerControlsConfiguration.overflowModalTextColor,
+                )),
+            const SizedBox(width: 16),
+            Text(
+              displayValue,
+              style: _getOverflowMenuElementTextStyle(isSelected),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAspectRatioSelectionWidget() {
+    final box =
+        widget.playerKey.currentContext?.findRenderObject() as RenderBox?;
+
+    if (box == null) {
+      return;
+    }
+
+    _showModalBottomSheet([
+      _buildAspectRatioRow(16.0 / 9.0, 'Default', BoxFit.contain),
+      _buildAspectRatioRow(
+          box.size.width / box.size.height, 'Crop to fill', BoxFit.cover),
+      _buildAspectRatioRow(4.0 / 3.0, '4:3', BoxFit.fill),
+      _buildAspectRatioRow(5.0 / 4.0, '5:4', BoxFit.fill),
+      _buildAspectRatioRow(16.0 / 9.0, '16:9', BoxFit.fill),
+      _buildAspectRatioRow(9.0 / 16.0, '9:16', BoxFit.fill),
+      _buildAspectRatioRow(16.0 / 10.0, '16:10', BoxFit.fill),
+      _buildAspectRatioRow(2.21 / 1.0, '2.21:1', BoxFit.fill),
+      _buildAspectRatioRow(2.35 / 1.0, '2.35:1', BoxFit.fill),
+      _buildAspectRatioRow(2.39 / 1.0, '2.39:1', BoxFit.fill),
+    ]);
+  }
+
   TextStyle _getOverflowMenuElementTextStyle(bool isSelected) {
     return TextStyle(
       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -499,8 +580,9 @@ abstract class BetterPlayerControlsState<T extends StatefulWidget>
               decoration: BoxDecoration(
                 color: betterPlayerControlsConfiguration.overflowModalColor,
                 borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(24.0),
-                    topRight: Radius.circular(24.0)),
+                  topLeft: Radius.circular(24.0),
+                  topRight: Radius.circular(24.0),
+                ),
               ),
               child: Column(
                 children: children,
@@ -527,5 +609,15 @@ abstract class BetterPlayerControlsState<T extends StatefulWidget>
       }
       controlsNotVisible = notVisible;
     });
+  }
+
+  void _changeAspectRatio(double ratio, BoxFit boxFit) {
+    setState(() {
+      this.aspectRatio = ratio;
+      this.boxFit = boxFit;
+    });
+
+    betterPlayerController?.setOverriddenAspectRatio(ratio);
+    betterPlayerController?.setOverriddenFit(boxFit);
   }
 }

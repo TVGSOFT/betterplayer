@@ -31,15 +31,21 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
   @override
   Future<int?> create({
     BetterPlayerBufferingConfiguration? bufferingConfiguration,
+    bool isCastEnabled = false,
   }) async {
     late final Map<String, dynamic>? response;
     if (bufferingConfiguration == null) {
-      response = await _channel.invokeMapMethod<String, dynamic>('create');
+      response = await _channel.invokeMapMethod<String, dynamic>(
+        'create',
+        <String, dynamic>{
+          'isCastEnabled': isCastEnabled,
+        },
+      );
     } else {
       final responseLinkedHashMap = await _channel.invokeMethod<Map?>(
         'create',
         <String, dynamic>{
-          'minBufferMs': bufferingConfiguration.minBufferMs,
+          'isCastEnabled': isCastEnabled,
           'maxBufferMs': bufferingConfiguration.maxBufferMs,
           'bufferForPlaybackMs': bufferingConfiguration.bufferForPlaybackMs,
           'bufferForPlaybackAfterRebufferMs':
@@ -56,72 +62,11 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
 
   @override
   Future<void> setDataSource(int? textureId, DataSource dataSource) async {
-    Map<String, dynamic>? dataSourceDescription;
-    switch (dataSource.sourceType) {
-      case DataSourceType.asset:
-        dataSourceDescription = <String, dynamic>{
-          'key': dataSource.key,
-          'asset': dataSource.asset,
-          'package': dataSource.package,
-          'useCache': false,
-          'maxCacheSize': 0,
-          'maxCacheFileSize': 0,
-          'showNotification': dataSource.showNotification,
-          'title': dataSource.title,
-          'author': dataSource.author,
-          'imageUrl': dataSource.imageUrl,
-          'notificationChannelName': dataSource.notificationChannelName,
-          'overriddenDuration': dataSource.overriddenDuration?.inMilliseconds,
-          'activityName': dataSource.activityName
-        };
-        break;
-      case DataSourceType.network:
-        dataSourceDescription = <String, dynamic>{
-          'key': dataSource.key,
-          'uri': dataSource.uri,
-          'formatHint': dataSource.rawFormalHint,
-          'headers': dataSource.headers,
-          'useCache': dataSource.useCache,
-          'maxCacheSize': dataSource.maxCacheSize,
-          'maxCacheFileSize': dataSource.maxCacheFileSize,
-          'cacheKey': dataSource.cacheKey,
-          'showNotification': dataSource.showNotification,
-          'title': dataSource.title,
-          'author': dataSource.author,
-          'imageUrl': dataSource.imageUrl,
-          'notificationChannelName': dataSource.notificationChannelName,
-          'overriddenDuration': dataSource.overriddenDuration?.inMilliseconds,
-          'licenseUrl': dataSource.licenseUrl,
-          'certificateUrl': dataSource.certificateUrl,
-          'drmHeaders': dataSource.drmHeaders,
-          'activityName': dataSource.activityName,
-          'clearKey': dataSource.clearKey,
-          'videoExtension': dataSource.videoExtension,
-        };
-        break;
-      case DataSourceType.file:
-        dataSourceDescription = <String, dynamic>{
-          'key': dataSource.key,
-          'uri': dataSource.uri,
-          'useCache': false,
-          'maxCacheSize': 0,
-          'maxCacheFileSize': 0,
-          'showNotification': dataSource.showNotification,
-          'title': dataSource.title,
-          'author': dataSource.author,
-          'imageUrl': dataSource.imageUrl,
-          'notificationChannelName': dataSource.notificationChannelName,
-          'overriddenDuration': dataSource.overriddenDuration?.inMilliseconds,
-          'activityName': dataSource.activityName,
-          'clearKey': dataSource.clearKey
-        };
-        break;
-    }
     await _channel.invokeMethod<void>(
       'setDataSource',
       <String, dynamic>{
         'textureId': textureId,
-        'dataSource': dataSourceDescription,
+        'dataSource': dataSource.toJson(),
       },
     );
     return;
@@ -296,17 +241,8 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
 
   @override
   Future<void> preCache(DataSource dataSource, int preCacheSize) {
-    final Map<String, dynamic> dataSourceDescription = <String, dynamic>{
-      'key': dataSource.key,
-      'uri': dataSource.uri,
-      'certificateUrl': dataSource.certificateUrl,
-      'headers': dataSource.headers,
-      'maxCacheSize': dataSource.maxCacheSize,
-      'maxCacheFileSize': dataSource.maxCacheFileSize,
-      'preCacheSize': preCacheSize,
-      'cacheKey': dataSource.cacheKey,
-      'videoExtension': dataSource.videoExtension,
-    };
+    final Map<String, dynamic> dataSourceDescription = dataSource.toJson();
+    dataSourceDescription['preCacheSize'] = preCacheSize;
     return _channel.invokeMethod<void>(
       'preCache',
       <String, dynamic>{
@@ -334,7 +270,6 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
       }
       final String? eventType = map["event"] as String?;
       final String? key = map["key"] as String?;
-      final String? source = map["source"] as String?;
       switch (eventType) {
         case 'initialized':
           double width = 0;
@@ -360,13 +295,11 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
             key: key,
             duration: Duration(milliseconds: map['duration'] as int),
             size: size,
-            source: source,
           );
         case 'completed':
           return VideoEvent(
             eventType: VideoEventType.completed,
             key: key,
-            source: source,
           );
         case 'bufferingUpdate':
           final List<dynamic> values = map['values'] as List;
@@ -374,41 +307,35 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
           return VideoEvent(
             eventType: VideoEventType.bufferingUpdate,
             key: key,
-            source: source,
             buffered: values.map<DurationRange>(_toDurationRange).toList(),
           );
         case 'bufferingStart':
           return VideoEvent(
             eventType: VideoEventType.bufferingStart,
             key: key,
-            source: source,
           );
         case 'bufferingEnd':
           return VideoEvent(
             eventType: VideoEventType.bufferingEnd,
             key: key,
-            source: source,
           );
 
         case 'play':
           return VideoEvent(
             eventType: VideoEventType.play,
             key: key,
-            source: source,
           );
 
         case 'pause':
           return VideoEvent(
             eventType: VideoEventType.pause,
             key: key,
-            source: source,
           );
 
         case 'seek':
           return VideoEvent(
             eventType: VideoEventType.seek,
             key: key,
-            source: source,
             position: Duration(milliseconds: map['position'] as int),
           );
 
@@ -416,21 +343,36 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
           return VideoEvent(
             eventType: VideoEventType.pipStart,
             key: key,
-            source: source,
           );
 
         case 'pipStop':
           return VideoEvent(
-            eventType: VideoEventType.pipStop,
+            eventType: VideoEventType.pipEnd,
             key: key,
-            source: source,
+          );
+
+        case 'isPlayingStateUpdate':
+          return VideoEvent(
+            eventType: VideoEventType.isPlayingStateUpdate,
+            key: key,
+          );
+
+        case 'castingStart':
+          return VideoEvent(
+            eventType: VideoEventType.castingStart,
+            key: key,
+          );
+
+        case 'castingEnd':
+          return VideoEvent(
+            eventType: VideoEventType.castingEnd,
+            key: key,
           );
 
         default:
           return VideoEvent(
             eventType: VideoEventType.unknown,
             key: key,
-            source: source,
           );
       }
     });

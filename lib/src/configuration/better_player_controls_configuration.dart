@@ -15,6 +15,9 @@ class BetterPlayerControlsConfiguration {
   ///Color of icons
   final Color iconsColor;
 
+  ///Color of icons
+  final Color activeIconsColor;
+
   ///Icon of play
   final IconData playIcon;
 
@@ -32,6 +35,9 @@ class BetterPlayerControlsConfiguration {
 
   ///Icon of fullscreen mode disable
   final IconData fullscreenDisableIcon;
+
+  ///Icon of lock orientation
+  final IconData lockIcon;
 
   ///Cupertino only icon, icon of skip
   final IconData skipBackIcon;
@@ -119,6 +125,9 @@ class BetterPlayerControlsConfiguration {
   ///Flag used to show/hide audio tracks
   final bool enableAudioTracks;
 
+  ///Flag used to show/hide aspect ratio
+  final bool enableAspectRatio;
+
   ///Custom items of overflow menu
   final List<BetterPlayerOverflowMenuItem> overflowMenuCustomItems;
 
@@ -139,6 +148,9 @@ class BetterPlayerControlsConfiguration {
 
   ///Icon of the audios menu item from overflow menu
   final IconData audioTracksIcon;
+
+  ///Icon of the audios menu item from overflow menu
+  final IconData aspectRatioIcon;
 
   ///Color of overflow menu icons
   final Color overflowMenuIconsColor;
@@ -164,10 +176,22 @@ class BetterPlayerControlsConfiguration {
   ///Color of text in bottom modal sheet used for overflow menu items.
   final Color overflowModalTextColor;
 
+  ///Flag which causes to controls expand to fill all remaining space. Set to false
+  ///to use minimum constraints
+  final bool enableControlsFullScreen;
+
+  ///Flag which causes to controls brightness
+  final bool enableBrightness;
+
+  //Flag which causes to controls volume
+  ///to use minimum constraints
+  final bool enableVolume;
+
   const BetterPlayerControlsConfiguration({
     this.controlBarColor = Colors.black87,
     this.textColor = Colors.white,
     this.iconsColor = Colors.white,
+    this.activeIconsColor = Colors.white,
     this.playIcon = Icons.play_arrow_outlined,
     this.pauseIcon = Icons.pause_outlined,
     this.muteIcon = Icons.volume_up_outlined,
@@ -176,6 +200,7 @@ class BetterPlayerControlsConfiguration {
     this.fullscreenDisableIcon = Icons.fullscreen_exit_outlined,
     this.skipBackIcon = Icons.replay_10_outlined,
     this.skipForwardIcon = Icons.forward_10_outlined,
+    this.lockIcon = Icons.lock_reset,
     this.enableFullscreen = true,
     this.enableCast = true,
     this.enableMute = true,
@@ -185,6 +210,7 @@ class BetterPlayerControlsConfiguration {
     this.enablePlayPause = true,
     this.enableSkips = true,
     this.enableAudioTracks = true,
+    this.enableAspectRatio = true,
     this.progressBarPlayedColor = Colors.white,
     this.progressBarHandleColor = Colors.white,
     this.progressBarBufferedColor = Colors.white70,
@@ -209,6 +235,7 @@ class BetterPlayerControlsConfiguration {
     this.qualitiesIcon = Icons.hd_outlined,
     this.subtitlesIcon = Icons.closed_caption_outlined,
     this.audioTracksIcon = Icons.audiotrack_outlined,
+    this.aspectRatioIcon = Icons.aspect_ratio,
     this.overflowMenuIconsColor = Colors.black,
     this.forwardSkipTimeInMilliseconds = 10000,
     this.backwardSkipTimeInMilliseconds = 10000,
@@ -217,17 +244,21 @@ class BetterPlayerControlsConfiguration {
     this.backgroundColor = Colors.black,
     this.overflowModalColor = Colors.white,
     this.overflowModalTextColor = Colors.black,
+    this.enableControlsFullScreen = false,
+    this.enableBrightness = false,
+    this.enableVolume = false,
   });
 
   factory BetterPlayerControlsConfiguration.white() {
     return const BetterPlayerControlsConfiguration(
-        controlBarColor: Colors.white,
-        textColor: Colors.black,
-        iconsColor: Colors.black,
-        progressBarPlayedColor: Colors.black,
-        progressBarHandleColor: Colors.black,
-        progressBarBufferedColor: Colors.black54,
-        progressBarBackgroundColor: Colors.white70);
+      controlBarColor: Colors.white,
+      textColor: Colors.black,
+      iconsColor: Colors.black,
+      progressBarPlayedColor: Colors.black,
+      progressBarHandleColor: Colors.black,
+      progressBarBufferedColor: Colors.black54,
+      progressBarBackgroundColor: Colors.white70,
+    );
   }
 
   factory BetterPlayerControlsConfiguration.cupertino() {

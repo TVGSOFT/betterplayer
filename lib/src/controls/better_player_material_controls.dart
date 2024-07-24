@@ -1,29 +1,36 @@
 import 'dart:async';
 
 import 'package:better_player/src/configuration/better_player_controls_configuration.dart';
+import 'package:better_player/src/controls/better_player_brightness_control.dart';
 import 'package:better_player/src/controls/better_player_cast_button.dart';
 import 'package:better_player/src/controls/better_player_clickable_widget.dart';
 import 'package:better_player/src/controls/better_player_controls_state.dart';
 import 'package:better_player/src/controls/better_player_material_progress_bar.dart';
 import 'package:better_player/src/controls/better_player_multiple_gesture_detector.dart';
 import 'package:better_player/src/controls/better_player_progress_colors.dart';
+import 'package:better_player/src/controls/better_player_volume_control.dart';
 import 'package:better_player/src/core/better_player_controller.dart';
 import 'package:better_player/src/core/better_player_utils.dart';
 import 'package:better_player/src/video_player/video_player.dart';
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-class BetterPlayerMaterialControls extends StatefulWidget {
+class BetterPlayerMaterialControls extends BetterPlayerControls {
   ///Callback used to send information if player bar is hidden or not
   final Function(bool visbility) onControlsVisibilityChanged;
 
   ///Controls config
   final BetterPlayerControlsConfiguration controlsConfiguration;
 
-  const BetterPlayerMaterialControls({
+  @override
+  final GlobalKey playerKey;
+
+  BetterPlayerMaterialControls({
     Key? key,
     required this.onControlsVisibilityChanged,
     required this.controlsConfiguration,
+    required this.playerKey,
   }) : super(key: key);
 
   @override
@@ -47,6 +54,8 @@ class _BetterPlayerMaterialControlsState
 
   BetterPlayerControlsConfiguration get _controlsConfiguration =>
       widget.controlsConfiguration;
+
+  bool _isLockedScreen = false;
 
   @override
   VideoPlayerValue? get latestValue => _latestValue;
@@ -107,7 +116,12 @@ class _BetterPlayerMaterialControlsState
               right: 0,
               child: _buildTopBar(),
             ),
-            Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomBar()),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: _buildBottomBar(),
+            ),
             _buildNextVideoWidget(),
           ],
         ),
@@ -118,6 +132,18 @@ class _BetterPlayerMaterialControlsState
   @override
   void dispose() {
     _dispose();
+
+    if (_isLockedScreen) {
+      SystemChrome.setPreferredOrientations(
+        [
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ],
+      );
+    }
+
     super.dispose();
   }
 
@@ -188,58 +214,60 @@ class _BetterPlayerMaterialControlsState
       return const SizedBox();
     }
 
-    if (_latestValue?.source == 'chromecast') {
+    if (!_controlsConfiguration.enableOverflowMenu) {
+      return const SizedBox();
+    }
+
+    if (_latestValue?.isCasting == true) {
       return Container(
-        child: (_controlsConfiguration.enableOverflowMenu)
-            ? AnimatedOpacity(
-                opacity: controlsNotVisible ? 0.0 : 1.0,
-                duration: _controlsConfiguration.controlsHideTime,
-                onEnd: _onPlayerHide,
-                child: Container(
-                  height: _controlsConfiguration.controlBarHeight,
-                  width: double.infinity,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      if (_controlsConfiguration.enableCast)
-                        _buildCastButton(controlsNotVisible, _onPlayerHide)
-                      else
-                        const SizedBox(),
-                    ],
-                  ),
-                ),
-              )
-            : const SizedBox(),
+        child: AnimatedOpacity(
+          opacity: controlsNotVisible ? 0.0 : 1.0,
+          duration: _controlsConfiguration.controlsHideTime,
+          onEnd: _onPlayerHide,
+          child: Container(
+            height: _controlsConfiguration.controlBarHeight,
+            width: double.infinity,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (_controlsConfiguration.enableCast)
+                  _buildCastButton(controlsNotVisible, _onPlayerHide)
+                else
+                  const SizedBox(),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
     return Container(
-      child: (_controlsConfiguration.enableOverflowMenu)
-          ? AnimatedOpacity(
-              opacity: controlsNotVisible ? 0.0 : 1.0,
-              duration: _controlsConfiguration.controlsHideTime,
-              onEnd: _onPlayerHide,
-              child: Container(
-                height: _controlsConfiguration.controlBarHeight,
-                width: double.infinity,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (_controlsConfiguration.enableCast)
-                      _buildCastButton(controlsNotVisible, _onPlayerHide)
-                    else
-                      const SizedBox(),
-                    if (_controlsConfiguration.enablePip)
-                      _buildPipButtonWrapperWidget(
-                          controlsNotVisible, _onPlayerHide)
-                    else
-                      const SizedBox(),
-                    _buildMoreButton(),
-                  ],
-                ),
+      child: AnimatedOpacity(
+        opacity: controlsNotVisible ? 0.0 : 1.0,
+        duration: _controlsConfiguration.controlsHideTime,
+        onEnd: _onPlayerHide,
+        child: Container(
+          height: _controlsConfiguration.controlBarHeight,
+          width: double.infinity,
+          child: Row(
+            children: [
+              _buildLockButton(controlsNotVisible, _onPlayerHide),
+              Expanded(
+                child: SizedBox.expand(),
               ),
-            )
-          : const SizedBox(),
+              if (_controlsConfiguration.enableCast)
+                _buildCastButton(controlsNotVisible, _onPlayerHide)
+              else
+                const SizedBox(),
+              if (_controlsConfiguration.enablePip)
+                _buildPipButtonWrapperWidget(controlsNotVisible, _onPlayerHide)
+              else
+                const SizedBox(),
+              _buildMoreButton(),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -288,6 +316,28 @@ class _BetterPlayerMaterialControlsState
     );
   }
 
+  Widget _buildLockButton(bool hideStuff, void Function() onPlayerHide) {
+    return AnimatedOpacity(
+      opacity: controlsNotVisible ? 0.0 : 1.0,
+      duration: _controlsConfiguration.controlsHideTime,
+      onEnd: onPlayerHide,
+      child: BetterPlayerMaterialClickableWidget(
+        key: const Key("better_player_material_controls_lock_button"),
+        onTap: _updateLockScreen,
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          child: Icon(
+            Icons.lock_reset,
+            color: _isLockedScreen
+                ? _controlsConfiguration.activeIconsColor
+                : _controlsConfiguration.iconsColor,
+            size: betterPlayerControlsConfiguration.controlBarHeight * 0.4,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildCastButton(bool hideStuff, void Function() onPlayerHide) {
     return AnimatedOpacity(
       opacity: controlsNotVisible ? 0.0 : 1.0,
@@ -314,9 +364,7 @@ class _BetterPlayerMaterialControlsState
 
   Widget _buildMoreButton() {
     return BetterPlayerMaterialClickableWidget(
-      onTap: () {
-        onShowMoreClicked();
-      },
+      onTap: onShowMoreClicked,
       child: Padding(
         padding: const EdgeInsets.all(8),
         child: Icon(
@@ -416,6 +464,7 @@ class _BetterPlayerMaterialControlsState
     if (!betterPlayerController!.controlsEnabled) {
       return const SizedBox();
     }
+
     return Container(
       child: Center(
         child: AnimatedOpacity(
@@ -428,26 +477,102 @@ class _BetterPlayerMaterialControlsState
   }
 
   Widget _buildMiddleRow() {
+    if (_betterPlayerController?.isLiveStream() == true) {
+      return Container(
+        color: _controlsConfiguration.controlBarColor,
+        width: double.infinity,
+        height: double.infinity,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            const SizedBox(
+              width: 16,
+            ),
+            if (betterPlayerControlsConfiguration.enableBrightness)
+              BetterPlayerBrightnessControl(
+                onDragStart: () {
+                  _hideTimer?.cancel();
+                },
+                onDragEnd: () {
+                  _startHideTimer();
+                },
+              ),
+            const SizedBox(
+              width: 16,
+            ),
+            Expanded(child: SizedBox.expand()),
+            const SizedBox(
+              width: 16,
+            ),
+            if (betterPlayerControlsConfiguration.enableVolume)
+              BetterPlayerVolumeControl(
+                volume: _latestValue?.volume ?? 0,
+                onChanged: _updateVolume,
+                onDragStart: () {
+                  _hideTimer?.cancel();
+                },
+                onDragEnd: () {
+                  _startHideTimer();
+                },
+              ),
+            const SizedBox(
+              width: 16,
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       color: _controlsConfiguration.controlBarColor,
       width: double.infinity,
       height: double.infinity,
-      child: _betterPlayerController?.isLiveStream() == true
-          ? const SizedBox()
-          : Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                if (_controlsConfiguration.enableSkips)
-                  Expanded(child: _buildSkipButton())
-                else
-                  const SizedBox(),
-                Expanded(child: _buildReplayButton(_controller!)),
-                if (_controlsConfiguration.enableSkips)
-                  Expanded(child: _buildForwardButton())
-                else
-                  const SizedBox(),
-              ],
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          const SizedBox(
+            width: 16,
+          ),
+          if (betterPlayerControlsConfiguration.enableBrightness)
+            BetterPlayerBrightnessControl(
+              onDragStart: () {
+                _hideTimer?.cancel();
+              },
+              onDragEnd: () {
+                _startHideTimer();
+              },
             ),
+          const SizedBox(
+            width: 16,
+          ),
+          if (_controlsConfiguration.enableSkips)
+            Expanded(child: _buildSkipButton())
+          else
+            const SizedBox(),
+          Expanded(child: _buildReplayButton(_controller!)),
+          if (_controlsConfiguration.enableSkips)
+            Expanded(child: _buildForwardButton())
+          else
+            const SizedBox(),
+          const SizedBox(
+            width: 16,
+          ),
+          if (betterPlayerControlsConfiguration.enableVolume)
+            BetterPlayerVolumeControl(
+              volume: _latestValue?.volume ?? 0,
+              onChanged: _updateVolume,
+              onDragStart: () {
+                _hideTimer?.cancel();
+              },
+              onDragEnd: () {
+                _startHideTimer();
+              },
+            ),
+          const SizedBox(
+            width: 16,
+          ),
+        ],
+      ),
     );
   }
 
@@ -498,7 +623,7 @@ class _BetterPlayerMaterialControlsState
   }
 
   Widget _buildReplayButton(VideoPlayerController controller) {
-    final bool isFinished = isVideoFinished(_latestValue);
+    final isFinished = isVideoFinished(_latestValue);
     return _buildHitAreaClickableButton(
       icon: isFinished
           ? Icon(
@@ -662,6 +787,9 @@ class _BetterPlayerMaterialControlsState
   }
 
   Future<void> _initialize() async {
+    aspectRatio = _betterPlayerController!.getAspectRatio() ?? 16 / 9;
+    boxFit = _betterPlayerController!.getFit();
+
     _controller!.addListener(_updateState);
 
     _updateState();
@@ -794,5 +922,43 @@ class _BetterPlayerMaterialControlsState
       valueColor:
           AlwaysStoppedAnimation<Color>(_controlsConfiguration.loadingColor),
     );
+  }
+
+  void _updateVolume(double value) {
+    _latestVolume = value;
+    _betterPlayerController?.setVolume(value);
+  }
+
+  void _updateLockScreen() {
+    _hideTimer?.cancel();
+
+    if (!_isLockedScreen) {
+      final orientation = MediaQuery.of(context).orientation;
+
+      SystemChrome.setPreferredOrientations(
+        orientation == Orientation.portrait
+            ? [
+                DeviceOrientation.portraitUp,
+                DeviceOrientation.portraitDown,
+              ]
+            : [
+                DeviceOrientation.landscapeLeft,
+                DeviceOrientation.landscapeRight,
+              ],
+      );
+    } else {
+      SystemChrome.setPreferredOrientations(
+        [
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ],
+      );
+    }
+
+    setState(() {
+      _isLockedScreen = !_isLockedScreen;
+    });
   }
 }

@@ -53,7 +53,7 @@ class BetterPlayerUtils {
     final width = size.width;
     final height = size.height;
 
-    return width > height ? width / height : height / width;
+    return width / height;
   }
 
   static void log(String logMessage) {

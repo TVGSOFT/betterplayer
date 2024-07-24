@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+
 import 'package:better_player/better_player.dart';
 import 'package:better_player/src/configuration/better_player_controller_event.dart';
+import 'package:better_player/src/controls/better_player_casting_placeholder.dart';
 import 'package:better_player/src/controls/better_player_cupertino_controls.dart';
 import 'package:better_player/src/controls/better_player_material_controls.dart';
 import 'package:better_player/src/core/better_player_utils.dart';
@@ -34,6 +36,11 @@ class _BetterPlayerWithControlsState extends State<BetterPlayerWithControls> {
 
   StreamSubscription? _controllerEventSubscription;
 
+  double _aspectRatio = 16 / 9;
+  BoxFit _boxFit = BoxFit.contain;
+
+  final playerKey = GlobalKey();
+
   @override
   void initState() {
     playerVisibilityStreamController.add(true);
@@ -60,11 +67,52 @@ class _BetterPlayerWithControlsState extends State<BetterPlayerWithControls> {
   }
 
   void _onControllerChanged(BetterPlayerControllerEvent event) {
-    setState(() {
-      if (!_initialized) {
+    if (!_initialized) {
+      setState(() {
         _initialized = true;
-      }
-    });
+      });
+    }
+
+    switch (event) {
+      case BetterPlayerControllerEvent.changeAspectRatio:
+        setState(() {
+          _aspectRatio = widget.controller!.getAspectRatio() ?? 16 / 9;
+        });
+        break;
+      case BetterPlayerControllerEvent.changeBoxFit:
+        setState(() {
+          _boxFit = widget.controller!.getFit();
+        });
+        break;
+      case BetterPlayerControllerEvent.openFullscreen:
+      case BetterPlayerControllerEvent.hideFullscreen:
+        setState(() {
+          if (widget.controller!.isFullScreen) {
+            if (widget.controller!.betterPlayerConfiguration
+                    .autoDetectFullscreenDeviceOrientation ||
+                widget.controller!.betterPlayerConfiguration
+                    .autoDetectFullscreenAspectRatio) {
+              _aspectRatio =
+                  widget.controller!.videoPlayerController?.value.aspectRatio ??
+                      1.0;
+
+              return;
+            } else if (widget.controller!.betterPlayerConfiguration
+                    .fullScreenAspectRatio !=
+                null) {
+              _aspectRatio = widget
+                  .controller!.betterPlayerConfiguration.fullScreenAspectRatio!;
+
+              return;
+            }
+          }
+
+          _aspectRatio = widget.controller!.getAspectRatio() ?? 16 / 9;
+        });
+        break;
+      default:
+        break;
+    }
   }
 
   @override
@@ -72,44 +120,24 @@ class _BetterPlayerWithControlsState extends State<BetterPlayerWithControls> {
     final BetterPlayerController betterPlayerController =
         BetterPlayerController.of(context);
 
-    double? aspectRatio;
-    if (betterPlayerController.isFullScreen) {
-      if (betterPlayerController.betterPlayerConfiguration
-              .autoDetectFullscreenDeviceOrientation ||
-          betterPlayerController
-              .betterPlayerConfiguration.autoDetectFullscreenAspectRatio) {
-        aspectRatio =
-            betterPlayerController.videoPlayerController?.value.aspectRatio ??
-                1.0;
-      } else {
-        aspectRatio = betterPlayerController
-                .betterPlayerConfiguration.fullScreenAspectRatio ??
-            BetterPlayerUtils.calculateAspectRatio(context);
-      }
-    } else {
-      aspectRatio = betterPlayerController.getAspectRatio();
-    }
-
-    aspectRatio ??= 16 / 9;
-    final innerContainer = Container(
+    return Container(
+      key: playerKey,
       width: double.infinity,
       color: betterPlayerController
           .betterPlayerConfiguration.controlsConfiguration.backgroundColor,
-      child: AspectRatio(
-        aspectRatio: aspectRatio,
-        child: _buildPlayerWithControls(betterPlayerController, context),
+      alignment: betterPlayerController.betterPlayerConfiguration.expandToFill
+          ? Alignment.center
+          : null,
+      child: _buildPlayerWithControls(
+        betterPlayerController,
+        _aspectRatio,
+        context,
       ),
     );
-
-    if (betterPlayerController.betterPlayerConfiguration.expandToFill) {
-      return Center(child: innerContainer);
-    } else {
-      return innerContainer;
-    }
   }
 
-  Container _buildPlayerWithControls(
-      BetterPlayerController betterPlayerController, BuildContext context) {
+  Widget _buildPlayerWithControls(BetterPlayerController betterPlayerController,
+      double aspectRatio, BuildContext context) {
     final configuration = betterPlayerController.betterPlayerConfiguration;
     var rotation = configuration.rotation;
 
@@ -124,30 +152,69 @@ class _BetterPlayerWithControlsState extends State<BetterPlayerWithControls> {
 
     final bool placeholderOnTop =
         betterPlayerController.betterPlayerConfiguration.placeholderOnTop;
-    // ignore: avoid_unnecessary_containers
-    return Container(
-      child: Stack(
-        fit: StackFit.passthrough,
-        children: <Widget>[
-          if (placeholderOnTop) _buildPlaceholder(betterPlayerController),
-          Transform.rotate(
-            angle: rotation * pi / 180,
-            child: _BetterPlayerVideoFitWidget(
-              betterPlayerController,
-              betterPlayerController.getFit(),
+
+    if (betterPlayerController.betterPlayerConfiguration.controlsConfiguration
+        .enableControlsFullScreen) {
+      return Container(
+        child: Stack(
+          fit: StackFit.passthrough,
+          children: <Widget>[
+            if (placeholderOnTop) _buildPlaceholder(betterPlayerController),
+            Center(
+              child: AspectRatio(
+                aspectRatio: aspectRatio,
+                child: Transform.rotate(
+                  angle: rotation * pi / 180,
+                  child: _BetterPlayerVideoFitWidget(
+                    betterPlayerController,
+                    _boxFit,
+                  ),
+                ),
+              ),
             ),
-          ),
-          betterPlayerController.betterPlayerConfiguration.overlay ??
-              Container(),
-          BetterPlayerSubtitlesDrawer(
-            betterPlayerController: betterPlayerController,
-            betterPlayerSubtitlesConfiguration: subtitlesConfiguration,
-            subtitles: betterPlayerController.subtitlesLines,
-            playerVisibilityStream: playerVisibilityStreamController.stream,
-          ),
-          if (!placeholderOnTop) _buildPlaceholder(betterPlayerController),
-          _buildControls(context, betterPlayerController),
-        ],
+            betterPlayerController.betterPlayerConfiguration.overlay ??
+                SizedBox.shrink(),
+            BetterPlayerSubtitlesDrawer(
+              betterPlayerController: betterPlayerController,
+              betterPlayerSubtitlesConfiguration: subtitlesConfiguration,
+              subtitles: betterPlayerController.subtitlesLines,
+              playerVisibilityStream: playerVisibilityStreamController.stream,
+            ),
+            if (!placeholderOnTop) _buildPlaceholder(betterPlayerController),
+            BetterPlayerCastingPlaceholder(),
+            _buildControls(context, betterPlayerController),
+          ],
+        ),
+      );
+    }
+
+    return AspectRatio(
+      aspectRatio: aspectRatio,
+      child: Container(
+        child: Stack(
+          fit: StackFit.passthrough,
+          children: <Widget>[
+            if (placeholderOnTop) _buildPlaceholder(betterPlayerController),
+            Transform.rotate(
+              angle: rotation * pi / 180,
+              child: _BetterPlayerVideoFitWidget(
+                betterPlayerController,
+                _boxFit,
+              ),
+            ),
+            betterPlayerController.betterPlayerConfiguration.overlay ??
+                SizedBox.shrink(),
+            BetterPlayerSubtitlesDrawer(
+              betterPlayerController: betterPlayerController,
+              betterPlayerSubtitlesConfiguration: subtitlesConfiguration,
+              subtitles: betterPlayerController.subtitlesLines,
+              playerVisibilityStream: playerVisibilityStreamController.stream,
+            ),
+            if (!placeholderOnTop) _buildPlaceholder(betterPlayerController),
+            BetterPlayerCastingPlaceholder(),
+            _buildControls(context, betterPlayerController),
+          ],
+        ),
       ),
     );
   }
@@ -188,6 +255,7 @@ class _BetterPlayerWithControlsState extends State<BetterPlayerWithControls> {
 
   Widget _buildMaterialControl() {
     return BetterPlayerMaterialControls(
+      playerKey: playerKey,
       onControlsVisibilityChanged: onControlsVisibilityChanged,
       controlsConfiguration: controlsConfiguration,
     );
@@ -195,6 +263,7 @@ class _BetterPlayerWithControlsState extends State<BetterPlayerWithControls> {
 
   Widget _buildCupertinoControl() {
     return BetterPlayerCupertinoControls(
+      playerKey: playerKey,
       onControlsVisibilityChanged: onControlsVisibilityChanged,
       controlsConfiguration: controlsConfiguration,
     );
@@ -279,18 +348,24 @@ class _BetterPlayerVideoFitWidgetState
 
     _controllerEventSubscription =
         widget.betterPlayerController.controllerEventStream.listen((event) {
-      if (event == BetterPlayerControllerEvent.play) {
-        if (!_started) {
-          setState(() {
-            _started =
-                widget.betterPlayerController.hasCurrentDataSourceStarted;
-          });
-        }
-      }
-      if (event == BetterPlayerControllerEvent.setupDataSource) {
-        setState(() {
-          _started = false;
-        });
+      switch (event) {
+        case BetterPlayerControllerEvent.play:
+          if (!_started) {
+            setState(() {
+              _started =
+                  widget.betterPlayerController.hasCurrentDataSourceStarted;
+            });
+          }
+          break;
+        case BetterPlayerControllerEvent.setupDataSource:
+          if (!_started) {
+            setState(() {
+              _started = false;
+            });
+          }
+          break;
+        default:
+          break;
       }
     });
   }

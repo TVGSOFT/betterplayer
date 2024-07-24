@@ -13,7 +13,7 @@ import java.util.ArrayList
  * This class is not thread-safe. All calls must be done on the same thread or synchronized
  * externally.
  */
-internal class QueuingEventSink : EventSink {
+internal class QueuingEventSink: EventSink {
     private var delegate: EventSink? = null
     private val eventQueue = ArrayList<Any>()
     private var done = false
@@ -46,19 +46,18 @@ internal class QueuingEventSink : EventSink {
     }
 
     private fun maybeFlush() {
-        if (delegate == null) {
-            return
-        }
+        val delegate = delegate ?: return
+
         for (event in eventQueue) {
             when (event) {
                 is EndOfStreamEvent -> {
-                    delegate!!.endOfStream()
+                    delegate.endOfStream()
                 }
                 is ErrorEvent -> {
-                    delegate!!.error(event.code, event.message, event.details)
+                    delegate.error(event.code, event.message, event.details)
                 }
                 else -> {
-                    delegate!!.success(event)
+                    delegate.success(event)
                 }
             }
         }

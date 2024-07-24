@@ -12,22 +12,25 @@ class BetterPlayerTranslations {
   final String overflowMenuSubtitles;
   final String overflowMenuQuality;
   final String overflowMenuAudioTracks;
+  final String overflowMenuAspectRatio;
   final String qualityAuto;
 
-  BetterPlayerTranslations(
-      {this.languageCode = "en",
-      this.generalDefaultError = "Video can't be played",
-      this.generalNone = "None",
-      this.generalDefault = "Default",
-      this.generalRetry = "Retry",
-      this.playlistLoadingNextVideo = "Loading next video",
-      this.controlsLive = "LIVE",
-      this.controlsNextVideoIn = "Next video in",
-      this.overflowMenuPlaybackSpeed = "Playback speed",
-      this.overflowMenuSubtitles = "Subtitles",
-      this.overflowMenuQuality = "Quality",
-      this.overflowMenuAudioTracks = "Audio",
-      this.qualityAuto = "Auto"});
+  BetterPlayerTranslations({
+    this.languageCode = "en",
+    this.generalDefaultError = "Video can't be played",
+    this.generalNone = "None",
+    this.generalDefault = "Default",
+    this.generalRetry = "Retry",
+    this.playlistLoadingNextVideo = "Loading next video",
+    this.controlsLive = "LIVE",
+    this.controlsNextVideoIn = "Next video in",
+    this.overflowMenuPlaybackSpeed = "Playback speed",
+    this.overflowMenuSubtitles = "Subtitles",
+    this.overflowMenuQuality = "Quality",
+    this.overflowMenuAudioTracks = "Audio",
+    this.overflowMenuAspectRatio = "Aspect Ratio",
+    this.qualityAuto = "Auto",
+  });
 
   factory BetterPlayerTranslations.polish() => BetterPlayerTranslations(
         languageCode: "pl",
@@ -41,6 +44,7 @@ class BetterPlayerTranslations {
         overflowMenuSubtitles: "Napisy",
         overflowMenuQuality: "Jakość",
         overflowMenuAudioTracks: "Dźwięk",
+        overflowMenuAspectRatio: "Współczynnik proporcji",
         qualityAuto: "Automatycznie",
       );
 
@@ -57,6 +61,7 @@ class BetterPlayerTranslations {
         overflowMenuSubtitles: "字幕",
         overflowMenuQuality: "质量",
         overflowMenuAudioTracks: "音訊",
+        overflowMenuAspectRatio: "长宽比",
         qualityAuto: "汽車",
       );
 
@@ -73,6 +78,7 @@ class BetterPlayerTranslations {
         overflowMenuSubtitles: "उपशीर्षक",
         overflowMenuQuality: "गुणवत्ता",
         overflowMenuAudioTracks: "ऑडियो",
+        overflowMenuAspectRatio: "आस्पेक्ट अनुपात",
         qualityAuto: "ऑटो",
       );
 
@@ -89,6 +95,7 @@ class BetterPlayerTranslations {
         overflowMenuSubtitles: "الترجمة",
         overflowMenuQuality: "الجودة",
         overflowMenuAudioTracks: "الصوت",
+        overflowMenuAspectRatio: "ابعاد متزنة",
         qualityAuto: "ऑटो",
       );
 
@@ -105,6 +112,7 @@ class BetterPlayerTranslations {
       overflowMenuSubtitles: "Altyazı",
       overflowMenuQuality: "Kalite",
       overflowMenuAudioTracks: "Ses",
+      overflowMenuAspectRatio: "En Boy Oranı",
       qualityAuto: "Otomatik");
 
   factory BetterPlayerTranslations.vietnamese() => BetterPlayerTranslations(
@@ -120,6 +128,7 @@ class BetterPlayerTranslations {
         overflowMenuSubtitles: "Phụ đề",
         overflowMenuQuality: "Chất lượng",
         overflowMenuAudioTracks: "Âm thanh",
+        overflowMenuAspectRatio: "Tỷ lệ khung hình",
         qualityAuto: "Tự động",
       );
 
@@ -135,6 +144,7 @@ class BetterPlayerTranslations {
         overflowMenuPlaybackSpeed: "Velocidad",
         overflowMenuSubtitles: "Subtítulos",
         overflowMenuQuality: "Calidad",
+        overflowMenuAspectRatio: "Relación de aspecto",
         qualityAuto: "Automática",
       );
 }

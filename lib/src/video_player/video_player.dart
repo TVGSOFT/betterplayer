@@ -5,6 +5,7 @@
 // Dart imports:
 import 'dart:async';
 import 'dart:io';
+
 import 'package:better_player/src/configuration/better_player_buffering_configuration.dart';
 import 'package:better_player/src/video_player/video_player_platform_interface.dart';
 import 'package:flutter/material.dart';
@@ -29,11 +30,11 @@ class VideoPlayerValue {
     this.isPlaying = false,
     this.isLooping = false,
     this.isBuffering = false,
+    this.isCasting = false,
     this.volume = 1.0,
     this.speed = 1.0,
     this.errorDescription,
     this.isPip = false,
-    this.source,
   });
 
   /// Returns an instance with a `null` [Duration].
@@ -68,6 +69,9 @@ class VideoPlayerValue {
 
   /// True if the video is currently buffering.
   final bool isBuffering;
+
+  ///Is Casting Video
+  final bool isCasting;
 
   /// The current volume of the playback.
   final double volume;
@@ -108,9 +112,6 @@ class VideoPlayerValue {
     return aspectRatio;
   }
 
-  ///Source of Player: expoPlayer, chromecast
-  final String? source;
-
   /// Returns a new instance that has the same values as this current instance,
   /// except for any overrides passed in as arguments to [copyWidth].
   VideoPlayerValue copyWith({
@@ -122,6 +123,7 @@ class VideoPlayerValue {
     bool? isPlaying,
     bool? isLooping,
     bool? isBuffering,
+    bool? isCasting,
     double? volume,
     String? errorDescription,
     double? speed,
@@ -137,11 +139,11 @@ class VideoPlayerValue {
       isPlaying: isPlaying ?? this.isPlaying,
       isLooping: isLooping ?? this.isLooping,
       isBuffering: isBuffering ?? this.isBuffering,
+      isCasting: isCasting ?? this.isCasting,
       volume: volume ?? this.volume,
       speed: speed ?? this.speed,
       errorDescription: errorDescription ?? this.errorDescription,
       isPip: isPip ?? this.isPip,
-      source: source ?? this.source,
     );
   }
 
@@ -157,6 +159,7 @@ class VideoPlayerValue {
         'isPlaying: $isPlaying, '
         'isLooping: $isLooping, '
         'isBuffering: $isBuffering, '
+        'isCasting: $isCasting, '
         'volume: $volume, '
         'errorDescription: $errorDescription)';
   }
@@ -179,6 +182,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   VideoPlayerController({
     this.bufferingConfiguration = const BetterPlayerBufferingConfiguration(),
     bool autoCreate = true,
+    this.isCastEnabled = false,
   }) : super(VideoPlayerValue(duration: null)) {
     if (autoCreate) {
       _create();
@@ -198,6 +202,8 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   bool get _created => _creatingCompleter.isCompleted;
   Duration? _seekPosition;
 
+  final bool isCastEnabled;
+
   /// This is just exposed for testing. It shouldn't be used by anyone depending
   /// on the plugin.
   @visibleForTesting
@@ -207,6 +213,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   Future<void> _create() async {
     _textureId = await _videoPlayerPlatform.create(
       bufferingConfiguration: bufferingConfiguration,
+        isCastEnabled: isCastEnabled,
     );
     _creatingCompleter.complete(null);
 
@@ -223,7 +230,6 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
           value = value.copyWith(
             duration: event.duration,
             size: event.size,
-            source: event.source,
           );
           if (!_initializingCompleter.isCompleted) {
             _initializingCompleter.complete(null);
@@ -258,8 +264,17 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         case VideoEventType.pipStart:
           value = value.copyWith(isPip: true);
           break;
-        case VideoEventType.pipStop:
+        case VideoEventType.pipEnd:
           value = value.copyWith(isPip: false);
+          break;
+        case VideoEventType.isPlayingStateUpdate:
+          value = value.copyWith(isPlaying: event.isPlaying);
+          break;
+        case VideoEventType.castingStart:
+          value = value.copyWith(isCasting: true);
+          break;
+        case VideoEventType.castingEnd:
+          value = value.copyWith(isCasting: false);
           break;
         case VideoEventType.unknown:
           break;
@@ -292,26 +307,12 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   Future<void> setAssetDataSource(
     String dataSource, {
     String? package,
-    bool? showNotification,
-    String? title,
-    String? author,
-    String? imageUrl,
-    String? notificationChannelName,
-    Duration? overriddenDuration,
-    String? activityName,
   }) {
     return _setDataSource(
       DataSource(
         sourceType: DataSourceType.asset,
         asset: dataSource,
         package: package,
-        showNotification: showNotification,
-        title: title,
-        author: author,
-        imageUrl: imageUrl,
-        notificationChannelName: notificationChannelName,
-        overriddenDuration: overriddenDuration,
-        activityName: activityName,
       ),
     );
   }
@@ -332,18 +333,11 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     int? maxCacheSize,
     int? maxCacheFileSize,
     String? cacheKey,
-    bool? showNotification,
-    String? title,
-    String? author,
-    String? imageUrl,
-    String? notificationChannelName,
-    Duration? overriddenDuration,
     String? licenseUrl,
     String? certificateUrl,
     Map<String, String>? drmHeaders,
-    String? activityName,
     String? clearKey,
-    String? videoExtension,
+    DataSourceMetadata? metadata,
   }) {
     return _setDataSource(
       DataSource(
@@ -355,18 +349,11 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         maxCacheSize: maxCacheSize,
         maxCacheFileSize: maxCacheFileSize,
         cacheKey: cacheKey,
-        showNotification: showNotification,
-        title: title,
-        author: author,
-        imageUrl: imageUrl,
-        notificationChannelName: notificationChannelName,
-        overriddenDuration: overriddenDuration,
         licenseUrl: licenseUrl,
         certificateUrl: certificateUrl,
         drmHeaders: drmHeaders,
-        activityName: activityName,
         clearKey: clearKey,
-        videoExtension: videoExtension,
+        metadata: metadata,
       ),
     );
   }
@@ -375,27 +362,18 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   ///
   /// This will load the file from the file-URI given by:
   /// `'file://${file.path}'`.
-  Future<void> setFileDataSource(File file,
-      {bool? showNotification,
-      String? title,
-      String? author,
-      String? imageUrl,
-      String? notificationChannelName,
-      Duration? overriddenDuration,
-      String? activityName,
-      String? clearKey}) {
+  Future<void> setFileDataSource(
+    File file, {
+    String? clearKey,
+    DataSourceMetadata? metadata,
+  }) {
     return _setDataSource(
       DataSource(
-          sourceType: DataSourceType.file,
-          uri: 'file://${file.path}',
-          showNotification: showNotification,
-          title: title,
-          author: author,
-          imageUrl: imageUrl,
-          notificationChannelName: notificationChannelName,
-          overriddenDuration: overriddenDuration,
-          activityName: activityName,
-          clearKey: clearKey),
+        sourceType: DataSourceType.file,
+        uri: 'file://${file.path}',
+        clearKey: clearKey,
+        metadata: metadata,
+      ),
     );
   }
 

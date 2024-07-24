@@ -9,6 +9,7 @@ import 'dart:async';
 import 'package:better_player/src/configuration/better_player_buffering_configuration.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+
 import 'method_channel_video_player.dart';
 
 /// The interface that implementations of video_player must implement.
@@ -67,7 +68,7 @@ abstract class VideoPlayerPlatform {
 
   /// Creates an instance of a video player and returns its textureId.
   Future<int?> create(
-      {BetterPlayerBufferingConfiguration? bufferingConfiguration}) {
+      {BetterPlayerBufferingConfiguration? bufferingConfiguration, bool isCastEnabled = false,}) {
     throw UnimplementedError('create() has not been implemented.');
   }
 
@@ -181,6 +182,24 @@ abstract class VideoPlayerPlatform {
   void _verifyProvidesDefaultImplementations() {}
 }
 
+class DataSourceMetadata {
+  String title;
+
+  String? artworkUri;
+
+  DataSourceMetadata({
+    required this.title,
+    this.artworkUri,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'title': title,
+      'artworkUri': artworkUri,
+    };
+  }
+}
+
 /// Description of the data source used to create an instance of
 /// the video player.
 class DataSource {
@@ -215,18 +234,11 @@ class DataSource {
     this.maxCacheSize = _maxCacheSize,
     this.maxCacheFileSize = _maxCacheFileSize,
     this.cacheKey,
-    this.showNotification = false,
-    this.title,
-    this.author,
-    this.imageUrl,
-    this.notificationChannelName,
-    this.overriddenDuration,
     this.licenseUrl,
     this.certificateUrl,
     this.drmHeaders,
-    this.activityName,
     this.clearKey,
-    this.videoExtension,
+    this.metadata,
   }) : assert(uri == null || asset == null);
 
   /// Describes the type of data source this [VideoPlayerController]
@@ -281,29 +293,15 @@ class DataSource {
 
   final String? cacheKey;
 
-  final bool? showNotification;
-
-  final String? title;
-
-  final String? author;
-
-  final String? imageUrl;
-
-  final String? notificationChannelName;
-
-  final Duration? overriddenDuration;
-
   final String? licenseUrl;
 
   final String? certificateUrl;
 
   final Map<String, String>? drmHeaders;
 
-  final String? activityName;
-
   final String? clearKey;
 
-  final String? videoExtension;
+  final DataSourceMetadata? metadata;
 
   /// Key to compare DataSource
   String get key {
@@ -329,8 +327,58 @@ class DataSource {
     return 'DataSource{sourceType: $sourceType, uri: $uri certificateUrl: $certificateUrl, formatHint:'
         ' $formatHint, asset: $asset, package: $package, headers: $headers,'
         ' useCache: $useCache,maxCacheSize: $maxCacheSize, maxCacheFileSize: '
-        '$maxCacheFileSize, showNotification: $showNotification, title: $title,'
-        ' author: $author}';
+        '$maxCacheFileSize}';
+  }
+
+  Map<String, dynamic> toJson() {
+    switch (sourceType) {
+      case DataSourceType.asset:
+        return {
+          'key': key,
+          'asset': asset,
+          'package': package,
+          'useCache': false,
+          'maxCacheSize': 0,
+          'maxCacheFileSize': 0,
+          'cacheKey': cacheKey,
+          'certificateUrl': certificateUrl,
+          'licenseUrl': licenseUrl,
+          'drmHeaders': drmHeaders,
+          'formatHint': rawFormalHint,
+          'clearKey': clearKey,
+          'metadata': metadata?.toJson(),
+        };
+      case DataSourceType.network:
+        return {
+          'key': key,
+          'uri': uri,
+          'useCache': useCache,
+          'maxCacheSize': maxCacheSize,
+          'maxCacheFileSize': maxCacheFileSize,
+          'cacheKey': cacheKey,
+          'certificateUrl': certificateUrl,
+          'licenseUrl': licenseUrl,
+          'drmHeaders': drmHeaders,
+          'formatHint': rawFormalHint,
+          'clearKey': clearKey,
+          'metadata': metadata?.toJson(),
+        };
+      case DataSourceType.file:
+        return {
+          'key': key,
+          'uri': uri,
+          'useCache': false,
+          'maxCacheSize': 0,
+          'maxCacheFileSize': 0,
+          'cacheKey': cacheKey,
+          'certificateUrl': certificateUrl,
+          'licenseUrl': licenseUrl,
+          'drmHeaders': drmHeaders,
+          'formatHint': rawFormalHint,
+          'clearKey': clearKey,
+          'metadata': metadata?.toJson(),
+        };
+    }
   }
 }
 
@@ -379,7 +427,7 @@ class VideoEvent {
     this.size,
     this.buffered,
     this.position,
-    this.source,
+    this.isPlaying,
   });
 
   /// The type of the event.
@@ -408,8 +456,8 @@ class VideoEvent {
   ///Seek position
   final Duration? position;
 
-  ///Source of Player: expoPlayer, chromecast
-  final String? source;
+  ///Player is playing
+  final bool? isPlaying;
 
   @override
   bool operator ==(Object other) {
@@ -464,7 +512,16 @@ enum VideoEventType {
   pipStart,
 
   /// Picture in picture mode has been dismissed
-  pipStop,
+  pipEnd,
+
+  /// The video started to cast.
+  castingStart,
+
+  /// The video stopped to cast.
+  castingEnd,
+
+  /// The video playing.
+  isPlayingStateUpdate,
 
   /// An unknown event has been received.
   unknown,

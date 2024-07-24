@@ -9,13 +9,13 @@ import io.flutter.plugin.platform.PlatformView
 class ChromeCastButton(
     context: Context?
 ) : PlatformView{
-    private val chromeCastButton = MediaRouteButton(ContextThemeWrapper(context, R.style.Theme_AppCompat_NoActionBar))
+    private val castButton = MediaRouteButton(ContextThemeWrapper(context, R.style.Theme_AppCompat_NoActionBar))
 
     init {
-        CastButtonFactory.setUpMediaRouteButton(context as Context, chromeCastButton)
+        CastButtonFactory.setUpMediaRouteButton(context as Context, castButton)
     }
 
-    override fun getView() = chromeCastButton
+    override fun getView() = castButton
 
     override fun dispose() {
     }

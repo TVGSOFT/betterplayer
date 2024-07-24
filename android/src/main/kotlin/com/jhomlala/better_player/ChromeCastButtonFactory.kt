@@ -5,14 +5,13 @@ import io.flutter.plugin.common.StandardMessageCodec
 import io.flutter.plugin.platform.PlatformView
 import io.flutter.plugin.platform.PlatformViewFactory
 
-class ChromeCastButtonFactory() : PlatformViewFactory(StandardMessageCodec.INSTANCE) {
-    var activity: Context? = null
+class ChromeCastButtonFactory : PlatformViewFactory(StandardMessageCodec.INSTANCE) {
 
     override fun create(
         context: Context?,
         viewId: Int,
         args: Any?
     ): PlatformView = ChromeCastButton(
-        context = activity
+        context = context
     )
 }
